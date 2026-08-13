@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+:root {
+  --color-app-bg: #020617;
+  --color-nav-bg: #020617;
+  --color-nav-border: #1e293b;
+  --color-reader-panel-bg: #0f172a;
+  --color-reader-canvas-bg: #020617;
+  --color-reader-text: #f8fafc;
+  --color-reader-highlight-bg: rgba(245, 158, 11, 0.25);
+  --color-reader-highlight-text: #fde68a;
+  --color-sidebar-panel-bg: #0f172a;
+  --color-sidebar-card-bg: #020617;
+  --color-card-surface-bg: #0f172a;
+  --color-accent: #f59e0b;
+  --color-accent-hover: #fbbf24;
+  --color-accent-text: #020617;
+  --color-pinyin: #fb7185;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-border-subtle: #1e293b;
+  --color-subcard-bg: #020617;
+}
+
+/* Theme utility classes */
+.theme-panel-box {
+  background-color: var(--color-reader-panel-bg);
+  border-color: var(--color-nav-border);
+  color: var(--color-text-primary);
+}
+
+.theme-card-box {
+  background-color: var(--color-card-surface-bg);
+  border-color: var(--color-nav-border);
+  color: var(--color-text-primary);
+}
+
+.theme-subcard-box {
+  background-color: var(--color-sidebar-card-bg);
+  border-color: var(--color-nav-border);
+  color: var(--color-text-primary);
+}
+
+.theme-input-box {
+  background-color: var(--color-sidebar-card-bg);
+  border-color: var(--color-nav-border);
+  color: var(--color-text-primary);
+}
+
+.theme-input-box:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.theme-heading {
+  color: var(--color-text-primary);
+}
+
+.theme-text-muted {
+  color: var(--color-text-muted);
+}
+
+.theme-text-subtle {
+  color: var(--color-text-secondary);
+}
+
+.theme-border {
+  border-color: var(--color-nav-border);
+}
+

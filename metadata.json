@@ -1,0 +1,6 @@
+{
+  "name": "Chinese Reader GU",
+  "description": "Brutalist Chinese-English contextual reader with offline dictionary, instant hover pinyin breakdown, custom flashcard deck manager, and SRS review system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
