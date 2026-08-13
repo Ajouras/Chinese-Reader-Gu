@@ -4,7 +4,7 @@ An interactive, brutalist-styled Chinese-English contextual reader with offline 
 
 ---
 
-## 🚀 Installation & Setup via GitHub
+## Installation & Setup via GitHub
 
 ### 1. Clone the Repository
 
