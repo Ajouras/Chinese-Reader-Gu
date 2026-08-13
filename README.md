@@ -1,10 +1,10 @@
 # Chinese Reader GU
 
-An interactive Chinese-English contextual reader with offline dictionary support, intelligent multi-character hover detection, Pinyin breakdowns, flashcard deck manager, and SRS (Spaced Repetition System) review.
+An interactive, brutalist-styled Chinese-English contextual reader with offline dictionary support, intelligent multi-character hover detection, Pinyin breakdowns, flashcard deck manager, and SRS (Spaced Repetition System) review.
 
 ---
 
-## Installation & Setup via GitHub
+## 🚀 Installation & Setup via GitHub
 
 ### 1. Clone the Repository
 
@@ -61,21 +61,35 @@ If you wish to enable the optional server-side **Gemini AI translation & grammar
 
 ---
 
-### 5. Run the Local Development Server
+### 5. One-Click Launch (Auto-Open in Browser)
 
-Start the full-stack development server (Express backend + Vite frontend):
+Once dependencies are installed via `npm install`, you can run the launcher script which boots the server and automatically pops open the app in your default browser:
+
+- **macOS / Linux / WSL**:
+  ```bash
+  ./start.sh
+  ```
+  *(or double-click `start.sh`)*
+
+- **Windows**:
+  Double-click `start.bat` or run:
+  ```cmd
+  start.bat
+  ```
+
+---
+
+### 6. Standard Manual Run (Optional)
+
+Alternatively, start the server directly via npm and navigate manually to `http://localhost:3000`:
 
 ```bash
 npm run dev
 ```
 
-Once running, navigate to:
-
-👉 **`http://localhost:3000`**
-
 ---
 
-### 6. Production Build & Deployment
+### 7. Production Build & Deployment
 
 To generate an optimized production build and start the standalone server:
 
