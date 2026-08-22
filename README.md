@@ -11,11 +11,10 @@ An interactive, Chinese-English contextual reader with offline dictionary suppor
 Open your terminal or command prompt and clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git
-cd YOUR_REPOSITORY_NAME
+git clone https://github.com/Ajouras/Chinese-Reader-Gu.git
+cd Chinese-Reader-Gu
 ```
 
-*(Replace `YOUR_USERNAME/YOUR_REPOSITORY_NAME` with your actual GitHub repository URL).*
 
 ---
 
