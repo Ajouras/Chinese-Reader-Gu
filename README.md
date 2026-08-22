@@ -1,10 +1,10 @@
 # Chinese Reader GU
 
-An interactive, brutalist-styled Chinese-English contextual reader with offline dictionary support, intelligent multi-character hover detection, Pinyin breakdowns, flashcard deck manager, and SRS (Spaced Repetition System) review.
+An interactive, Chinese-English contextual reader with offline dictionary support, intelligent multi-character hover detection, Pinyin breakdowns, flashcard deck manager, and SRS (Spaced Repetition System) review.
 
 ---
 
-## 🚀 Installation & Setup via GitHub
+## Installation & Setup via GitHub
 
 ### 1. Clone the Repository
 
@@ -113,7 +113,7 @@ npm start
 
 ---
 
-## 📜 Available Scripts
+## Available Scripts
 
 | Command | Description |
 |---|---|
