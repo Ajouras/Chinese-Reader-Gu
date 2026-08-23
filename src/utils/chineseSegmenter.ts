@@ -36,7 +36,7 @@ export interface LexicalToken {
 
 // Set of all known multi-character words from lexicon for O(1) membership check
 let LEXICON_WORD_SET: Set<string> | null = null;
-const MAX_WORD_LEN = 4; // Chinese lexical words, compounds, and 4-character idioms (成语) are at most 4 characters
+const MAX_WORD_LEN = 8; // Chinese lexical words, compounds, and idioms (成语/熟语) up to 8 characters
 
 export function getLexiconWordSet(): Set<string> {
   if (!LEXICON_WORD_SET) {
@@ -44,7 +44,7 @@ export function getLexiconWordSet(): Set<string> {
     for (const entry of OFFLINE_LEXICON) {
       if (entry.zh && entry.zh.length > 0) {
         const trimmed = entry.zh.trim();
-        // Only include true lexical units up to 4 characters for token segmentation (preventing whole sentences from becoming tokens)
+        // Include true lexical units and idioms up to 8 characters
         if (trimmed.length <= MAX_WORD_LEN) {
           LEXICON_WORD_SET.add(trimmed);
         }

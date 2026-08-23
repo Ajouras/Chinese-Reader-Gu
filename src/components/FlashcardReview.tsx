@@ -187,17 +187,44 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({
 
         {fields.includes('context') && card.contextSentence && (
           <div 
-            className="border p-3 text-xs italic max-w-lg mx-auto font-mono text-left"
+            className="border p-3 text-xs max-w-lg mx-auto font-mono text-left space-y-1.5"
             style={{
               backgroundColor: 'var(--color-sidebar-card-bg)',
               borderColor: 'var(--color-nav-border)',
               color: 'var(--color-text-primary)'
             }}
           >
-            "{card.contextSentence}"
+            <div className="leading-relaxed">
+              &ldquo;
+              {card.chinese && card.contextSentence.includes(card.chinese) ? (
+                card.contextSentence.split(card.chinese).map((part, idx, arr) => (
+                  <React.Fragment key={idx}>
+                    {part}
+                    {idx < arr.length - 1 && (
+                      <mark
+                        style={{
+                          backgroundColor: 'var(--color-reader-highlight-bg, rgba(245, 158, 11, 0.35))',
+                          color: 'var(--color-reader-highlight-text, #fef08a)',
+                          boxShadow: '0 0 0 1px var(--color-accent, #f59e0b)',
+                          borderRadius: '2px',
+                          padding: '0 4px',
+                        }}
+                        className="font-bold not-italic"
+                      >
+                        {card.chinese}
+                      </mark>
+                    )}
+                  </React.Fragment>
+                ))
+              ) : (
+                card.contextSentence
+              )}
+              &rdquo;
+            </div>
             {card.contextTranslation && (
-              <div className="pt-1 not-italic font-bold opacity-80" style={{ color: 'var(--color-accent)' }}>
-                → {card.contextTranslation}
+              <div className="pt-1.5 border-t font-semibold opacity-90 leading-relaxed" style={{ borderColor: 'var(--color-nav-border)', color: 'var(--color-accent)' }}>
+                <span className="opacity-60 mr-1 font-mono">→</span>
+                {card.contextTranslation.replace(/^["“”']|["“”']$/g, '')}
               </div>
             )}
           </div>
@@ -216,7 +243,7 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({
               >
                 <span className="font-bold" style={{ color: 'var(--color-reader-text)' }}>{b.char}</span>{' '}
                 <span className="font-mono text-[11px]" style={{ color: 'var(--color-pinyin)' }}>{b.pinyin}</span>:{' '}
-                <span className="opacity-80" style={{ color: 'var(--color-text-primary)' }}>{b.mean}</span>
+                <span className="opacity-80" style={{ color: 'var(--color-text-primary)' }}>{b.mean || (b as any).meaning || ''}</span>
               </div>
             ))}
           </div>

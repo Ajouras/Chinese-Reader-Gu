@@ -1,20 +1,40 @@
 # Chinese Reader GU
 
-An interactive, Chinese-English contextual reader with offline dictionary support, intelligent multi-character hover detection, Pinyin breakdowns, flashcard deck manager, and SRS (Spaced Repetition System) review.
+An interactive, brutalist-styled Chinese-English contextual reader with offline dictionary support, intelligent multi-character hover detection, Pinyin breakdowns, flashcard deck manager, and SRS (Spaced Repetition System) review.
 
 ---
 
-## Installation & Setup via GitHub
+## 📚 Text File Library (`texts/`)
+
+The application includes an automated **Text File Library**:
+
+1. Place any valid `.txt` file inside the `texts/` folder.
+2. Open or refresh the application. All `.txt` files in `texts/` are scanned and listed in the reading material selector.
+3. Select any text file to load it directly into the reader.
+4. You can also import or add `.txt` files directly via the **"Add .txt File"** button in the reader toolbar, which automatically saves them to `texts/`.
+
+---
+
+## 🎯 Click-to-Translate Interaction Model
+
+- **Hover**: Moving your cursor over text identifies and highlights the target character or word with an interaction preview. Mouse movement **never** triggers translation requests or network calls.
+- **Click**: Clicking any highlighted word triggers the phrase detection system (resolving multi-character Chinese compounds/idioms like `解决`/`塞翁失马` or English phrasal verbs like `take care of`), extracts the surrounding sentence context, and displays the in-context definition, Pinyin, and breakdown.
+- **Flashcard Saving**: Press `[S]` (or your configured shortcut key) to immediately save the selected word, Pinyin, and context sentence to your flashcard deck.
+
+---
+
+## 🚀 Installation & Setup via GitHub
 
 ### 1. Clone the Repository
 
 Open your terminal or command prompt and clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/Ajouras/Chinese-Reader-Gu.git
-cd Chinese-Reader-Gu
+git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git
+cd YOUR_REPOSITORY_NAME
 ```
 
+*(Replace `YOUR_USERNAME/YOUR_REPOSITORY_NAME` with your actual GitHub repository URL).*
 
 ---
 
@@ -112,7 +132,7 @@ npm start
 
 ---
 
-## Available Scripts
+## 📜 Available Scripts
 
 | Command | Description |
 |---|---|

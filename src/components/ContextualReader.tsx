@@ -10,18 +10,69 @@ import {
   Type,
   HelpCircle,
   CheckCircle2,
-  ChevronRight,
-  Split,
-  Maximize2,
   BookMarked,
-  Languages,
   WifiOff,
-  GripVertical
+  GripVertical,
+  FolderOpen,
+  AlertCircle,
+  Plus
 } from 'lucide-react';
-import { TranslationResult, Flashcard } from '../types';
-import { tokenizeText, getSurroundingSentence, speakText, TextToken } from '../utils/textParser';
-import { translateOffline, translateOfflineAsync } from '../utils/offlineDictionary';
-import { SAMPLE_TEXTS } from '../data/sampleTexts';
+import { TranslationResult, Flashcard, TextFileItem } from '../types';
+import { tokenizeText, getSurroundingSentence, speakText, TextToken, detectLinguisticUnitAtToken } from '../utils/textParser';
+import { translateOfflineAsync } from '../utils/offlineDictionary';
+
+function escapeRegex(str: string) {
+  return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+function renderHighlightedSentence(sentence: string, primaryTarget?: string, secondaryTarget?: string) {
+  if (!sentence) return null;
+  const cleanSent = sentence.replace(/^["“”']|["“”']$/g, '').trim();
+
+  const terms = [primaryTarget, secondaryTarget]
+    .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+    .map((t) => t.trim().replace(/^["“”']|["“”']$/g, ''));
+
+  if (terms.length === 0) {
+    return <span>&ldquo;{cleanSent}&rdquo;</span>;
+  }
+
+  // Sort longest term first to ensure greedy match
+  const sorted = [...new Set(terms)].sort((a, b) => b.length - a.length);
+  const pattern = sorted.map(escapeRegex).join('|');
+  const regex = new RegExp(`(${pattern})`, 'i');
+
+  const parts = cleanSent.split(regex);
+  const termLowerSet = new Set(sorted.map((t) => t.toLowerCase()));
+
+  return (
+    <span>
+      &ldquo;
+      {parts.map((part, idx) => {
+        const isMatch = termLowerSet.has(part.toLowerCase());
+        if (isMatch) {
+          return (
+            <mark
+              key={idx}
+              style={{
+                backgroundColor: 'var(--color-reader-highlight-bg, rgba(245, 158, 11, 0.35))',
+                color: 'var(--color-reader-highlight-text, #fef08a)',
+                boxShadow: '0 0 0 1px var(--color-accent, #f59e0b)',
+                borderRadius: '2px',
+                padding: '1px 5px',
+              }}
+              className="font-bold underline decoration-amber-400 decoration-2 underline-offset-2 not-italic"
+            >
+              {part}
+            </mark>
+          );
+        }
+        return <span key={idx}>{part}</span>;
+      })}
+      &rdquo;
+    </span>
+  );
+}
 
 interface ContextualReaderProps {
   onSaveToBank: (card: Omit<Flashcard, 'id' | 'dateAdded' | 'interval' | 'easeFactor' | 'repetitions' | 'state'>) => Promise<boolean>;
@@ -38,8 +89,14 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
   onToggleAiTranslation,
   saveCardShortcut = 's',
 }) => {
+  // Text Library state
+  const [textLibrary, setTextLibrary] = useState<TextFileItem[]>([]);
+  const [selectedFilename, setSelectedFilename] = useState<string>('');
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState<boolean>(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+
   // Reader state
-  const [inputText, setInputText] = useState<string>(SAMPLE_TEXTS[0].content);
+  const [inputText, setInputText] = useState<string>('');
   const [isEditingText, setIsEditingText] = useState<boolean>(false);
   const [sourceLang, setSourceLang] = useState<'zh' | 'en'>('zh');
   const [selectedDeckId, setSelectedDeckId] = useState<string>('main');
@@ -47,7 +104,6 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
   // Reader UI settings
   const [fontSize, setFontSize] = useState<number>(20);
-  const [interactionMode, setInteractionMode] = useState<'hover' | 'select'>('hover');
 
   // Split pane resizable state
   const [splitPercent, setSplitPercent] = useState<number>(55);
@@ -55,22 +111,86 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Active translation & exact token selection state
-  const [activeToken, setActiveToken] = useState<string | null>(null);
+  // Hover vs Click interaction state
+  const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
   const [activeTokenId, setActiveTokenId] = useState<string | null>(null);
+  const [activeToken, setActiveToken] = useState<string | null>(null);
   const [activeSelectionRange, setActiveSelectionRange] = useState<{ start: number; end: number } | null>(null);
+
+  // Translation state
   const [translation, setTranslation] = useState<TranslationResult | null>(null);
   const [isLoadingTranslation, setIsLoadingTranslation] = useState<boolean>(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [isSavedSuccess, setIsSavedSuccess] = useState<boolean>(false);
 
-  // File upload & hover debounce refs
+  // Refs & Caches
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const hoverDebounceTimer = useRef<NodeJS.Timeout | null>(null);
   const justSelectedRef = useRef<boolean>(false);
   const justSelectedTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isSelectingRef = useRef<boolean>(false);
   const clientCacheRef = useRef<Map<string, TranslationResult>>(new Map());
+
+  // 1. Fetch text library on mount and when requested
+  const fetchTextLibrary = async (targetFileToSelect?: string) => {
+    setIsLoadingLibrary(true);
+    setLibraryError(null);
+    try {
+      const res = await fetch('/api/texts');
+      if (!res.ok) {
+        throw new Error(`Failed to scan text library (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      const files: TextFileItem[] = data.files || [];
+      setTextLibrary(files);
+
+      if (files.length > 0) {
+        const fileToLoad = targetFileToSelect || selectedFilename || files[0].filename;
+        const exists = files.some((f) => f.filename === fileToLoad);
+        const resolvedName = exists ? fileToLoad : files[0].filename;
+        await loadTextFile(resolvedName);
+      } else {
+        // Fallback default message if texts folder is empty
+        setInputText('The texts/ library folder is currently empty. Place any .txt file in the texts/ folder or click "Upload .txt File" above to get started.');
+        setSelectedFilename('');
+      }
+    } catch (err: any) {
+      console.error('Error loading texts library:', err);
+      setLibraryError('Unable to connect to the text library. Please check your texts/ folder.');
+    } finally {
+      setIsLoadingLibrary(false);
+    }
+  };
+
+  // 2. Load selected text file content
+  const loadTextFile = async (filename: string) => {
+    if (!filename) return;
+    setIsLoadingLibrary(true);
+    setLibraryError(null);
+    try {
+      const res = await fetch(`/api/texts/${encodeURIComponent(filename)}`);
+      if (!res.ok) {
+        throw new Error(`Could not load "${filename}". Status: ${res.status}`);
+      }
+      const data = await res.json();
+      setInputText(data.content || '');
+      setSelectedFilename(filename);
+      // Reset active selection & translation when changing texts
+      setActiveTokenId(null);
+      setActiveToken(null);
+      setActiveSelectionRange(null);
+      setTranslation(null);
+    } catch (err: any) {
+      console.error(`Error loading text file ${filename}:`, err);
+      setLibraryError(`Error: Failed to load "${filename}". Please select another file.`);
+    } finally {
+      setIsLoadingLibrary(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchTextLibrary();
+  }, []);
 
   // Global keydown listener for saving flashcards via user-configured shortcut key (e.g. 's')
   useEffect(() => {
@@ -88,7 +208,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
       const shortcutKey = (saveCardShortcut || 's').toLowerCase().trim();
       if (shortcutKey && e.key.toLowerCase() === shortcutKey) {
-        if (translation && translation.chinese) {
+        if (translation && (translation.chinese || translation.english)) {
           e.preventDefault();
           handleSaveWord();
         }
@@ -142,14 +262,15 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
   // Auto-detect language when input text changes
   useEffect(() => {
-    const hasChinese = /[\u4e00-\u9fa5]/.test(inputText.slice(0, 100));
+    const sample = inputText.slice(0, 200);
+    const hasChinese = /[\u4e00-\u9fa5]/.test(sample);
     setSourceLang(hasChinese ? 'zh' : 'en');
   }, [inputText]);
 
   // Memoize tokenization of current text
   const tokens = useMemo(() => tokenizeText(inputText, sourceLang === 'zh'), [inputText, sourceLang]);
 
-  // Translate word with optional AI support (Default: high-accuracy offline engine)
+  // Translate word/phrase with debouncing and fast caching
   const handleTranslate = async (word: string, contextSentence: string, tokenId?: string) => {
     if (!word || word.trim().length === 0) return;
 
@@ -159,13 +280,12 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
     if (tokenId) {
       setActiveTokenId(tokenId);
-      setActiveSelectionRange(null);
     }
     setActiveToken(trimmed);
     setIsSavedSuccess(false);
     setTranslationError(null);
 
-    // Fast client cache check
+    // Fast client cache check to avoid duplicate calls
     if (clientCacheRef.current.has(cacheKey)) {
       setTranslation(clientCacheRef.current.get(cacheKey)!);
       setIsLoadingTranslation(false);
@@ -230,32 +350,37 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     }
   };
 
-  // Handle token hover with fast, responsive debouncing
-  const handleTokenHover = (token: TextToken) => {
-    if (interactionMode !== 'hover') return;
+  // Hover handler: ONLY updates visual cursor highlight. STRICTLY NO translation execution.
+  const handleTokenMouseEnter = (token: TextToken) => {
     if (isSelectingRef.current) return;
-
-    // Immediately highlight the hovered token without delay
-    setActiveTokenId(token.id);
-    setActiveSelectionRange(null);
-    setActiveToken(token.text);
-
-    if (hoverDebounceTimer.current) {
-      clearTimeout(hoverDebounceTimer.current);
-    }
-
-    hoverDebounceTimer.current = setTimeout(() => {
-      if (isSelectingRef.current) return;
-      const context = getSurroundingSentence(inputText, token.text, token.startIndex);
-      handleTranslate(token.text, context, token.id);
-    }, 120);
+    setHoveredTokenId(token.id);
   };
 
-  // Helper to check if a token should be highlighted as active
+  const handleTokenMouseLeave = (token: TextToken) => {
+    setHoveredTokenId((prev) => (prev === token.id ? null : prev));
+  };
+
+  // Click-to-Translate handler: captures token, runs phrase detection, extracts context sentence, and invokes translation
+  const handleTokenClick = (token: TextToken) => {
+    if (justSelectedRef.current) return;
+    const sel = window.getSelection()?.toString().trim();
+    if (sel && sel.length > 0) return;
+
+    // Detect complete linguistic unit / multi-word phrase or compound
+    const detected = detectLinguisticUnitAtToken(inputText, token, sourceLang === 'zh');
+
+    // Highlight the selected phrase bounds
+    setActiveTokenId(token.id);
+    setActiveSelectionRange({ start: detected.startIndex, end: detected.endIndex });
+
+    // Execute translation with clicked phrase & context
+    handleTranslate(detected.phrase, detected.contextSentence, token.id);
+  };
+
+  // Check if a token falls within the active selected range or matches the active token ID
   const isTokenActive = (token: TextToken) => {
     if (!token.isWord) return false;
 
-    // If there is an active text selection range (drag selection)
     if (activeSelectionRange) {
       return (
         token.startIndex >= activeSelectionRange.start &&
@@ -263,7 +388,6 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
       );
     }
 
-    // Exact token ID match: highlights only the targeted word without affecting sibling words
     if (activeTokenId) {
       return token.id === activeTokenId;
     }
@@ -271,12 +395,12 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     return false;
   };
 
-  // Handle manual selection of text
+  // Handle manual selection (drag selection)
   const handleTextSelection = () => {
     const selection = window.getSelection();
     if (!selection) return;
     const rawSelectedStr = selection.toString().trim();
-    if (rawSelectedStr.length > 0 && rawSelectedStr.length <= 200) {
+    if (rawSelectedStr.length > 0 && rawSelectedStr.length <= 300) {
       let cleanSelected = rawSelectedStr;
       const collapsed = cleanSelected.replace(/\s+/g, ' ');
       const noSpace = cleanSelected.replace(/\s+/g, '');
@@ -315,19 +439,47 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     }
   };
 
-  // File upload handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File upload handler - saves to texts/ library and selects it
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.name.toLowerCase().endsWith('.txt')) {
+      setLibraryError('Only .txt text files can be added to the library.');
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
       if (content) {
-        setInputText(content);
+        try {
+          setIsLoadingLibrary(true);
+          const saveRes = await fetch('/api/texts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: file.name,
+              content,
+            }),
+          });
+          if (saveRes.ok) {
+            const data = await saveRes.json();
+            await fetchTextLibrary(data.filename);
+          } else {
+            setInputText(content);
+            setSelectedFilename(file.name);
+          }
+        } catch (err) {
+          setInputText(content);
+          setSelectedFilename(file.name);
+        } finally {
+          setIsLoadingLibrary(false);
+        }
       }
     };
     reader.readAsText(file);
+    e.target.value = ''; // reset file input
   };
 
   // Save active translation to bank
@@ -353,6 +505,29 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 font-sans">
+      {/* Non-blocking Library Error Banner */}
+      {libraryError && (
+        <div
+          style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderColor: 'rgba(239, 68, 68, 0.3)',
+            color: '#f87171',
+          }}
+          className="border p-3 flex items-center justify-between text-xs rounded-none transition-all"
+        >
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{libraryError}</span>
+          </div>
+          <button
+            onClick={() => setLibraryError(null)}
+            className="hover:underline font-semibold ml-4 opacity-80 hover:opacity-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Top Controls & Toolbar */}
       <div 
         style={{
@@ -395,32 +570,61 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
             </button>
           </div>
 
-          {/* Sample Text Selector */}
-          <select
-            onChange={(e) => {
-              const selected = SAMPLE_TEXTS.find((s) => s.id === e.target.value);
-              if (selected) {
-                setInputText(selected.content);
-                setSourceLang(selected.lang);
-              }
-            }}
-            defaultValue=""
-            style={{
-              backgroundColor: 'var(--color-sidebar-card-bg)',
-              borderColor: 'var(--color-nav-border)',
-              color: 'var(--color-text-primary)',
-            }}
-            className="border rounded-none text-xs px-3 py-2 font-medium cursor-pointer"
-          >
-            <option value="" disabled>
-              📚 Load Sample Text...
-            </option>
-            {SAMPLE_TEXTS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title} ({s.category})
-              </option>
-            ))}
-          </select>
+          {/* Text File Library Selector */}
+          <div className="flex items-center space-x-1.5">
+            <div className="flex items-center space-x-1 border px-2.5 py-1.5 text-xs font-semibold"
+              style={{
+                backgroundColor: 'var(--color-sidebar-card-bg)',
+                borderColor: 'var(--color-nav-border)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>texts/</span>
+            </div>
+
+            <select
+              value={selectedFilename}
+              onChange={(e) => {
+                const name = e.target.value;
+                if (name) {
+                  loadTextFile(name);
+                }
+              }}
+              style={{
+                backgroundColor: 'var(--color-sidebar-card-bg)',
+                borderColor: 'var(--color-nav-border)',
+                color: 'var(--color-text-primary)',
+              }}
+              className="border rounded-none text-xs px-3 py-2 font-medium cursor-pointer max-w-[220px] truncate"
+              title="Select reading material from texts/ library"
+            >
+              {textLibrary.length === 0 ? (
+                <option value="">No texts found in texts/</option>
+              ) : (
+                textLibrary.map((file) => (
+                  <option key={file.filename} value={file.filename}>
+                    {file.title} ({(file.size / 1024).toFixed(1)} KB)
+                  </option>
+                ))
+              )}
+            </select>
+
+            {/* Rescan / Refresh Library Button */}
+            <button
+              onClick={() => fetchTextLibrary()}
+              disabled={isLoadingLibrary}
+              style={{
+                backgroundColor: 'var(--color-sidebar-card-bg)',
+                borderColor: 'var(--color-nav-border)',
+                color: 'var(--color-text-primary)',
+              }}
+              className="p-2 border rounded-none hover:opacity-90 transition"
+              title="Rescan texts/ folder for newly added .txt files"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLibrary ? 'animate-spin text-amber-400' : ''}`} />
+            </button>
+          </div>
 
           {/* Engine Status Toggle Button */}
           <button
@@ -446,7 +650,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
             )}
           </button>
 
-          {/* Load via File */}
+          {/* Upload .txt file to library */}
           <button
             onClick={() => fileInputRef.current?.click()}
             style={{
@@ -454,87 +658,77 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
               borderColor: 'var(--color-nav-border)',
               color: 'var(--color-text-primary)',
             }}
-            className="flex items-center space-x-1.5 text-xs border px-3 py-2 rounded-none font-medium transition opacity-90 hover:opacity-100"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-none text-xs font-semibold border transition opacity-90 hover:opacity-100"
+            title="Import a .txt file into the texts/ library"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Open File</span>
+            <span>Add .txt File</span>
           </button>
           <input
-            type="file"
             ref={fileInputRef}
+            type="file"
+            accept=".txt,text/plain"
             onChange={handleFileUpload}
-            accept=".txt,.md,.json"
             className="hidden"
           />
         </div>
 
-        {/* Font size, Interaction Mode & Edit Text Toggle */}
-        <div className="flex items-center space-x-4 text-xs">
-          <div className="flex items-center space-x-2">
-            <Type className="w-4 h-4 opacity-80" />
-            <input
-              type="range"
-              min="14"
-              max="32"
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              className="w-24 cursor-pointer"
-              style={{ accentColor: 'var(--color-accent)' }}
-            />
-            <span className="w-8 text-right font-medium">{fontSize}px</span>
-          </div>
-
+        {/* Font Size & Edit Toggle Controls */}
+        <div className="flex items-center space-x-3">
           <div 
-            className="flex items-center space-x-1 p-1 rounded-none border"
             style={{
               backgroundColor: 'var(--color-sidebar-card-bg)',
               borderColor: 'var(--color-nav-border)',
+              color: 'var(--color-text-primary)'
             }}
+            className="flex items-center space-x-1.5 border px-2 py-1"
           >
+            <Type className="w-3.5 h-3.5 opacity-60" />
             <button
-              onClick={() => setInteractionMode('hover')}
-              style={{
-                backgroundColor: interactionMode === 'hover' ? 'var(--color-reader-panel-bg)' : 'transparent',
-                borderColor: interactionMode === 'hover' ? 'var(--color-accent)' : 'transparent',
-                color: interactionMode === 'hover' ? 'var(--color-accent)' : 'var(--color-text-primary)',
-              }}
-              className="px-2.5 py-1 text-xs font-semibold rounded-none transition border"
-              title="Hover over any word to translate instantly"
+              onClick={() => setFontSize((prev) => Math.max(14, prev - 2))}
+              className="px-1.5 py-0.5 text-xs font-bold hover:opacity-80"
+              title="Decrease Font Size"
             >
-              Hover
+              -
             </button>
+            <span className="text-xs font-mono px-1 font-semibold">{fontSize}px</span>
             <button
-              onClick={() => setInteractionMode('select')}
-              style={{
-                backgroundColor: interactionMode === 'select' ? 'var(--color-reader-panel-bg)' : 'transparent',
-                borderColor: interactionMode === 'select' ? 'var(--color-accent)' : 'transparent',
-                color: interactionMode === 'select' ? 'var(--color-accent)' : 'var(--color-text-primary)',
-              }}
-              className="px-2.5 py-1 text-xs font-semibold rounded-none transition border"
-              title="Highlight phrase with mouse cursor to translate"
+              onClick={() => setFontSize((prev) => Math.min(36, prev + 2))}
+              className="px-1.5 py-0.5 text-xs font-bold hover:opacity-80"
+              title="Increase Font Size"
             >
-              Select
+              +
             </button>
           </div>
+
+          <button
+            onClick={() => setIsEditingText(!isEditingText)}
+            style={{
+              backgroundColor: isEditingText ? 'var(--color-accent)' : 'var(--color-sidebar-card-bg)',
+              borderColor: isEditingText ? 'var(--color-accent)' : 'var(--color-nav-border)',
+              color: isEditingText ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
+            }}
+            className="px-3 py-1.5 text-xs font-semibold border rounded-none transition"
+          >
+            {isEditingText ? 'Done Editing' : 'Edit Text'}
+          </button>
         </div>
       </div>
 
-      {/* Main Split Layout Container */}
+      {/* Main Resizable Workspace */}
       <div
         ref={containerRef}
-        className={`flex flex-col lg:flex-row items-stretch min-h-[600px] gap-4 lg:gap-0 relative ${
-          isDraggingSplit ? 'select-none cursor-col-resize' : ''
-        }`}
+        className={`flex ${isMobile ? 'flex-col space-y-4' : 'flex-row items-stretch'} w-full transition-all`}
       >
-        {/* Left Panel: Text Reader Area */}
+        {/* Left Panel: Text Reader */}
         <div
           style={{
-            ...(isMobile ? {} : { flex: `0 0 ${splitPercent}%`, minWidth: 0 }),
-            backgroundColor: 'var(--color-reader-panel-bg, #0f172a)',
+            ...(isMobile ? {} : { width: `${splitPercent}%` }),
+            backgroundColor: 'var(--color-reader-panel-bg, #090d16)',
             borderColor: 'var(--color-nav-border, #1e293b)',
             color: 'var(--color-text-primary, #ffffff)',
           }}
-          className="w-full border rounded-none p-5 shadow-xl flex flex-col justify-between space-y-4 transition-colors duration-200"
+          className="w-full border rounded-none p-5 shadow-xl flex flex-col justify-between transition-colors duration-200"
         >
           <div>
             <div className="flex items-center justify-between pb-3 mb-4 border-b" style={{ borderColor: 'var(--color-nav-border)' }}>
@@ -544,38 +738,24 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                   className="w-4 h-4" 
                 />
                 <h2 className="text-sm font-bold tracking-wide">
-                  {sourceLang === 'zh' ? 'Chinese Text Reader' : 'English Text Reader'}
+                  {selectedFilename ? selectedFilename : 'Active Text'}
                 </h2>
+                <span className="text-[10px] opacity-60 font-mono">
+                  ({tokens.filter((t) => t.isWord).length} {sourceLang === 'zh' ? 'characters/words' : 'words'})
+                </span>
               </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setIsEditingText(!isEditingText)}
-                  style={{
-                    backgroundColor: isEditingText ? 'var(--color-accent)' : 'var(--color-sidebar-card-bg)',
-                    color: isEditingText ? 'var(--color-accent-text)' : 'var(--color-accent)',
-                    borderColor: 'var(--color-accent)',
-                  }}
-                  className="px-3 py-1 text-xs font-semibold rounded-none border transition"
-                >
-                  {isEditingText ? '📖 Interactive Reader' : '✏️ Edit Text'}
-                </button>
+              <div className="flex items-center space-x-2 text-[11px] font-mono opacity-70">
+                <span>Click any word to translate</span>
               </div>
             </div>
 
-            {/* Editable Text Area or Interactive View */}
             {isEditingText ? (
               <div className="space-y-2">
-                <label className="text-xs opacity-80 font-medium block">
-                  Edit Reader Source Text (Live editable):
-                </label>
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Type or paste custom Chinese or English text here..."
-                  rows={12}
-                  style={{ 
-                    fontSize: `${fontSize}px`, 
-                    lineHeight: 1.6,
+                  style={{
+                    fontSize: `${fontSize}px`,
                     backgroundColor: 'var(--color-reader-canvas-bg, #020617)',
                     borderColor: 'var(--color-nav-border)',
                     color: 'var(--color-reader-text, #f8fafc)',
@@ -598,7 +778,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                 }}
                 style={{ 
                   fontSize: `${fontSize}px`, 
-                  lineHeight: 1.8,
+                  lineHeight: 1.85,
                   backgroundColor: 'var(--color-reader-canvas-bg, #020617)',
                   borderColor: 'var(--color-nav-border)',
                   color: 'var(--color-reader-text, #f8fafc)',
@@ -606,7 +786,29 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                 className="border rounded-none p-5 min-h-[360px] max-h-[500px] overflow-y-auto whitespace-pre-wrap select-text font-sans leading-relaxed tracking-wide transition-all shadow-inner"
               >
                 {tokens.map((token) => {
+                  const isActive = isTokenActive(token);
+                  const isHovered = hoveredTokenId === token.id && !isActive;
+                  const isInsideActiveRange =
+                    activeSelectionRange !== null &&
+                    token.startIndex >= activeSelectionRange.start &&
+                    token.endIndex <= activeSelectionRange.end;
+
                   if (!token.isWord) {
+                    if (isInsideActiveRange) {
+                      return (
+                        <span
+                          key={token.id}
+                          style={{
+                            backgroundColor: 'var(--color-reader-highlight-bg, rgba(245, 158, 11, 0.35))',
+                            color: 'var(--color-reader-highlight-text, #fef08a)',
+                            boxShadow: 'inset 0 -2px 0 0 var(--color-accent, #f59e0b)',
+                          }}
+                          className="opacity-90 select-text inline"
+                        >
+                          {token.text}
+                        </span>
+                      );
+                    }
                     return (
                       <span key={token.id} className="opacity-90 select-text">
                         {token.text}
@@ -614,33 +816,30 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                     );
                   }
 
-                  const isActive = isTokenActive(token);
-
                   return (
                     <span
                       key={token.id}
-                      onClick={() => {
-                        if (justSelectedRef.current) return;
-                        // If user currently has text selected, do not override selection with single token click
-                        const sel = window.getSelection()?.toString().trim();
-                        if (sel && sel.length > 0) return;
-
-                        const context = getSurroundingSentence(inputText, token.text, token.startIndex);
-                        handleTranslate(token.text, context, token.id);
-                      }}
-                      onMouseEnter={() => handleTokenHover(token)}
+                      onClick={() => handleTokenClick(token)}
+                      onMouseEnter={() => handleTokenMouseEnter(token)}
+                      onMouseLeave={() => handleTokenMouseLeave(token)}
                       style={
-                        isActive
+                        isActive || isInsideActiveRange
                           ? {
                               backgroundColor: 'var(--color-reader-highlight-bg, rgba(245, 158, 11, 0.35))',
                               color: 'var(--color-reader-highlight-text, #fef08a)',
                               boxShadow: 'inset 0 -2px 0 0 var(--color-accent, #f59e0b)',
                             }
+                          : isHovered
+                          ? {
+                              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                              outline: '1px solid rgba(245, 158, 11, 0.45)',
+                            }
                           : undefined
                       }
                       className={`inline cursor-pointer transition-colors duration-75 rounded-none font-normal ${
-                        !isActive ? 'hover:bg-amber-500/10' : ''
+                        !isActive && !isInsideActiveRange && !isHovered ? 'hover:bg-amber-500/10' : ''
                       }`}
+                      title="Click to translate"
                     >
                       {token.text}
                     </span>
@@ -699,19 +898,36 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                 )}
               </div>
               {translation && (
-                <button
-                  onClick={() => speakText(translation.chinese, 'zh-CN')}
-                  style={{
-                    backgroundColor: 'var(--color-sidebar-card-bg)',
-                    color: 'var(--color-accent, #f59e0b)',
-                    borderColor: 'var(--color-accent, #f59e0b)',
-                  }}
-                  className="flex items-center space-x-1 text-xs border px-2.5 py-1 rounded-none font-semibold transition"
-                  title="Listen to native pronunciation"
-                >
-                  <Volume2 className="w-3.5 h-3.5" />
-                  <span>Audio</span>
-                </button>
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={() => speakText(translation.chinese, 'zh-CN')}
+                    style={{
+                      backgroundColor: 'var(--color-sidebar-card-bg)',
+                      color: 'var(--color-accent, #f59e0b)',
+                      borderColor: 'var(--color-accent, #f59e0b)',
+                    }}
+                    className="flex items-center space-x-1 text-xs border px-2.5 py-1 rounded-none font-semibold transition"
+                    title="Listen to Chinese pronunciation"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Audio (中文)</span>
+                  </button>
+                  {translation.english && (
+                    <button
+                      onClick={() => speakText(translation.english, 'en-US')}
+                      style={{
+                        backgroundColor: 'var(--color-sidebar-card-bg)',
+                        color: 'var(--color-text-primary)',
+                        borderColor: 'var(--color-nav-border)',
+                      }}
+                      className="flex items-center space-x-1 text-xs border px-2 py-1 rounded-none font-medium transition opacity-80 hover:opacity-100"
+                      title="Listen to English pronunciation"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>EN</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -722,7 +938,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                   style={{ color: 'var(--color-accent, #f59e0b)' }} 
                   className="w-8 h-8 animate-spin" 
                 />
-                <p className="text-xs font-medium">Parsing Entry...</p>
+                <p className="text-xs font-medium">Analyzing Linguistic Unit...</p>
               </div>
             ) : translationError ? (
               <div 
@@ -745,7 +961,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                   }}
                   className="border rounded-none p-4 space-y-2"
                 >
-                  <div className="flex items-baseline justify-between">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span 
                       style={{ color: 'var(--color-accent, #f59e0b)' }}
                       className="text-3xl font-extrabold font-serif tracking-wider"
@@ -770,7 +986,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                     backgroundColor: 'var(--color-sidebar-card-bg, #020617)',
                     borderColor: 'var(--color-nav-border)',
                   }}
-                  className="border rounded-none p-3.5 space-y-1.5 text-xs"
+                  className="border rounded-none p-3.5 space-y-2 text-xs"
                 >
                   <div className="font-medium flex items-center space-x-1 opacity-80">
                     <BookMarked 
@@ -779,13 +995,22 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                     />
                     <span>In-Context Sentence:</span>
                   </div>
-                  <p className="italic leading-relaxed opacity-95">
-                    "{translation.contextSentence}"
-                  </p>
+                  <div className="leading-relaxed opacity-95">
+                    {renderHighlightedSentence(
+                      translation.contextSentence,
+                      translation.selectedText || (translation.mode === 'en-to-zh' ? translation.english : translation.chinese),
+                      translation.mode === 'en-to-zh' ? translation.english : translation.chinese
+                    )}
+                  </div>
                   {translation.contextTranslation && (
-                    <p className="pt-1 border-t opacity-80" style={{ borderColor: 'var(--color-nav-border)' }}>
-                      → {translation.contextTranslation}
-                    </p>
+                    <div className="pt-2 border-t opacity-90 leading-relaxed" style={{ borderColor: 'var(--color-nav-border)' }}>
+                      <span className="opacity-60 mr-1 font-mono">→</span>
+                      {renderHighlightedSentence(
+                        translation.contextTranslation,
+                        translation.mode === 'zh-to-en' ? translation.english : translation.chinese,
+                        translation.mode === 'zh-to-en' ? translation.chinese : translation.selectedText
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -815,7 +1040,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                           >
                             {item.pinyin}
                           </div>
-                          <div className="text-[10px] opacity-70 truncate">{item.mean}</div>
+                          <div className="text-[10px] opacity-70 truncate">{item.mean || (item as any).meaning || ''}</div>
                         </div>
                       ))}
                     </div>
@@ -826,9 +1051,9 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
               <div className="flex flex-col items-center justify-center py-20 text-center opacity-60 space-y-3">
                 <HelpCircle className="w-10 h-10 stroke-1" />
                 <div className="space-y-1 max-w-xs">
-                  <p className="text-xs font-semibold">No Word Selected</p>
+                  <p className="text-xs font-semibold">Click Any Word or Phrase</p>
                   <p className="text-xs opacity-80">
-                    Hover or click any word in the text reader to view instant pinyin & definition.
+                    Hovering highlights text. Click on any word to detect linguistic units, look up definitions, and view in-context translation.
                   </p>
                 </div>
               </div>
@@ -922,7 +1147,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                 )}
               </button>
               <div className="text-[10px] text-center font-mono opacity-70">
-                Tip: Hover over any word and press <span style={{ color: 'var(--color-accent, #f59e0b)' }} className="font-bold">[{saveCardShortcut.toUpperCase() || 'S'}]</span> to save instantly
+                Tip: Click any word and press <span style={{ color: 'var(--color-accent, #f59e0b)' }} className="font-bold">[{saveCardShortcut.toUpperCase() || 'S'}]</span> to save to flashcards
               </div>
             </div>
           )}

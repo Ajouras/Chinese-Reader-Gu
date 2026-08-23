@@ -14,14 +14,68 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// Ensure data directory exists
+// Ensure data and texts directories exist
 const DATA_DIR = path.join(process.cwd(), 'data');
 const BANK_FILE = path.join(DATA_DIR, 'flashcards.json');
 const BACKUP_FILE = path.join(DATA_DIR, 'flashcards.json.bak');
 
+const TEXTS_DIR = path.join(process.cwd(), 'texts');
+
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });
 }
+
+if (!existsSync(TEXTS_DIR)) {
+  mkdirSync(TEXTS_DIR, { recursive: true });
+}
+
+// Helper to seed initial sample texts into texts/ folder if directory is empty
+async function seedDefaultTextsIfEmpty() {
+  try {
+    const existing = await fs.readdir(TEXTS_DIR);
+    const txtFiles = existing.filter((f) => f.toLowerCase().endsWith('.txt'));
+    if (txtFiles.length === 0) {
+      await fs.writeFile(
+        path.join(TEXTS_DIR, '塞翁失马.txt'),
+        `在古老的中国，边塞住着一位老人，人们都叫他塞翁。
+有一天，塞翁家的一匹好马突然不知去向。邻居们纷纷跑来安慰他，塞翁却笑着说：“马丢了虽然可惜，但怎么知道这不是一件好事呢？”
+
+几个月后，那匹失踪的老马不仅自己回来了，还带回了一匹高大健壮的胡地骏马。邻居们大为惊喜，都跑来向塞翁祝贺。塞翁却皱起眉头说：“白白得了一匹好马，怎么知道这不是祸事呢？”
+
+塞翁的儿子非常喜欢骑这匹骏马。有一天，他不小心从马背上摔了下来，折断了腿。邻居们又跑来安慰，塞翁依然平静地说：“儿子腿摔断了，怎么知道这不是福气呢？”
+
+一年后，边境爆发了战争，所有年轻人都被征召入伍去打仗。由于塞翁的儿子腿有残疾，免于参军，父子俩因此得以在战乱中平安相守。
+
+这个故事告诉我们：祸福相依，坏事可能变成好事，好事也可能蕴含危机。`,
+        'utf-8'
+      );
+
+      await fs.writeFile(
+        path.join(TEXTS_DIR, '人工智能与未来生活.txt'),
+        `随着科技的飞速发展，人工智能（AI）已经深刻地改变了我们的日常生活。
+从智能手机的语音助手，到自动驾驶汽车，AI技术的应用无处不在。
+
+在语言学习领域，现代人工智能使得跨语言交流变得前所未有的便捷。学习者不仅可以随时随地获取实时翻译，还能通过智能语境分析理解单词深层含义与文化背景。
+
+然而，技术的进步也为人类提出了新的课题：如何在享受科技便利的同时，保持人类独立思考与创造力？这需要我们在探索未知领域的过程中不断寻求平衡。`,
+        'utf-8'
+      );
+
+      await fs.writeFile(
+        path.join(TEXTS_DIR, 'Exploring_the_Wonders_of_Beijing.txt'),
+        `Beijing, the capital city of China, is a vibrant metropolis that seamlessly blends ancient history with breathtaking modern architecture.
+
+When visiting Beijing, your first stop should be the Forbidden City, a magnificent imperial palace complex that served as the home of emperors for over five hundred years. Walking through its grand red courtyards feels like stepping back into a timeless chapter of history.
+
+Not far from the city center lies the Great Wall of China, winding gracefully over rolling green mountains. Standing atop this colossal stone structure offers spectacular views and a profound sense of awe.`,
+        'utf-8'
+      );
+    }
+  } catch (err) {
+    console.warn('Could not seed default texts:', err);
+  }
+}
+seedDefaultTextsIfEmpty();
 
 // Initialize Gemini AI client
 const getGeminiClient = () => {
@@ -46,9 +100,116 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// ==========================================
+// TEXT FILE LIBRARY API ENDPOINTS
+// ==========================================
+
+// 1. Scan texts/ folder and list all available .txt files
+app.get('/api/texts', async (req, res) => {
+  try {
+    if (!existsSync(TEXTS_DIR)) {
+      mkdirSync(TEXTS_DIR, { recursive: true });
+    }
+
+    const entries = await fs.readdir(TEXTS_DIR, { withFileTypes: true });
+    const txtFiles = entries.filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.txt'));
+
+    const fileList = await Promise.all(
+      txtFiles.map(async (file) => {
+        const filePath = path.join(TEXTS_DIR, file.name);
+        try {
+          const stat = await fs.stat(filePath);
+          const rawName = file.name.replace(/\.txt$/i, '');
+          const cleanTitle = rawName.replace(/[_-]/g, ' ');
+          return {
+            filename: file.name,
+            title: cleanTitle,
+            size: stat.size,
+            modifiedAt: stat.mtime.toISOString(),
+          };
+        } catch (err) {
+          return {
+            filename: file.name,
+            title: file.name.replace(/\.txt$/i, ''),
+            size: 0,
+            modifiedAt: new Date().toISOString(),
+          };
+        }
+      })
+    );
+
+    // Sort files by modified time descending or alphabetically
+    fileList.sort((a, b) => a.title.localeCompare(b.title));
+
+    res.json({ files: fileList });
+  } catch (error: any) {
+    console.error('Error scanning texts/ folder:', error);
+    res.status(500).json({ error: 'Failed to scan texts library directory', details: error.message });
+  }
+});
+
+// 2. Load a specific .txt file content from texts/ folder
+app.get('/api/texts/:filename', async (req, res) => {
+  try {
+    const rawFilename = req.params.filename;
+    const safeFilename = path.basename(rawFilename);
+
+    if (!safeFilename.toLowerCase().endsWith('.txt')) {
+      return res.status(400).json({ error: 'Only .txt files are supported' });
+    }
+
+    const filePath = path.join(TEXTS_DIR, safeFilename);
+
+    if (!existsSync(filePath)) {
+      return res.status(404).json({ error: `File "${safeFilename}" was not found in texts library.` });
+    }
+
+    const content = await fs.readFile(filePath, 'utf-8');
+    const rawName = safeFilename.replace(/\.txt$/i, '');
+    const cleanTitle = rawName.replace(/[_-]/g, ' ');
+
+    res.json({
+      filename: safeFilename,
+      title: cleanTitle,
+      content,
+    });
+  } catch (error: any) {
+    console.error(`Error reading text file ${req.params.filename}:`, error);
+    res.status(500).json({ error: 'Failed to read text file', details: error.message });
+  }
+});
+
+// 3. Save / Upload a new .txt file into texts/ folder
+app.post('/api/texts', async (req, res) => {
+  try {
+    const { filename, content } = req.body;
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'File content is required' });
+    }
+
+    let cleanName = (filename || `text-${Date.now()}`).trim();
+    cleanName = path.basename(cleanName);
+    if (!cleanName.toLowerCase().endsWith('.txt')) {
+      cleanName += '.txt';
+    }
+
+    const targetPath = path.join(TEXTS_DIR, cleanName);
+    await fs.writeFile(targetPath, content, 'utf-8');
+
+    res.json({
+      success: true,
+      filename: cleanName,
+      title: cleanName.replace(/\.txt$/i, '').replace(/[_-]/g, ' '),
+    });
+  } catch (error: any) {
+    console.error('Error saving text file to library:', error);
+    res.status(500).json({ error: 'Failed to save text file to library', details: error.message });
+  }
+});
+
 // Helper to execute Gemini generation with auto-retry and model fallback on temporary 503/429 load
 async function generateGeminiContentWithFallback(ai: GoogleGenAI, prompt: string, schema: any) {
-  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
   let lastError: any = null;
 
   for (const model of models) {
@@ -95,7 +256,18 @@ app.post('/api/translate-context', async (req, res) => {
     if (useAi && process.env.GEMINI_API_KEY) {
       try {
         const ai = getGeminiClient();
-        const prompt = `Analyze this Chinese text selection "${trimmedText}" in the context sentence "${trimmedContext}". 
+        const isEn = mode === 'en-to-zh' || !/[\u4e00-\u9fa5]/.test(trimmedText);
+
+        const prompt = isEn
+          ? `Analyze this English selection "${trimmedText}" within the context sentence "${trimmedContext}".
+CRITICAL TRANSLATION INSTRUCTIONS:
+- For "chinese": Provide the accurate, idiomatic Simplified Chinese translation for the specific phrase "${trimmedText}".
+- For "pinyin": Provide accurate Hanyu Pinyin with tone marks for that Chinese translation.
+- For "english": Return "${trimmedText}".
+- For "contextSentence": Return "${trimmedContext}".
+- For "contextTranslation": Provide the complete, natural Simplified Chinese translation of the entire surrounding sentence "${trimmedContext}".
+- For "breakdown": Provide an array of character objects for every Chinese character in the translated Chinese term, with fields "char", "pinyin", and "meaning" (English meaning of each character).`
+          : `Analyze this Chinese text selection "${trimmedText}" in the context sentence "${trimmedContext}". 
 CRITICAL TRANSLATION INSTRUCTIONS:
 - For "english": Provide a natural, smooth, accurate translation for the specific selected term/phrase "${trimmedText}" as used in this context. If "${trimmedText}" is a single word or short term (e.g., "重要", "学习", "儿子"), translate only "${trimmedText}", NOT the whole sentence.
 - For "contextTranslation": Provide the complete, fluent English translation of the entire surrounding context sentence "${trimmedContext}".

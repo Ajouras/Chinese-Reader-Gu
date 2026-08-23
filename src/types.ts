@@ -105,3 +105,10 @@ export interface BankStatus {
   isRecovered: boolean;
   fileSize: number;
 }
+
+export interface TextFileItem {
+  filename: string;
+  title: string;
+  size: number;
+  modifiedAt: string;
+}

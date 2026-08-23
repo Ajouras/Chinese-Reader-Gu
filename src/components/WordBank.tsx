@@ -30,6 +30,7 @@ interface WordBankProps {
   onRestoreBackup: () => Promise<void>;
   onExportCards: (format: 'json' | 'csv') => void;
   onImportCards: (jsonOrCsv: string) => void;
+  onOpenAddCard?: () => void;
 }
 
 export const WordBank: React.FC<WordBankProps> = ({
@@ -41,6 +42,7 @@ export const WordBank: React.FC<WordBankProps> = ({
   onRestoreBackup,
   onExportCards,
   onImportCards,
+  onOpenAddCard,
 }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDeckFilter, setSelectedDeckFilter] = useState<string>('all');
@@ -271,6 +273,20 @@ export const WordBank: React.FC<WordBankProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 text-xs">
+            {onOpenAddCard && (
+              <button
+                onClick={onOpenAddCard}
+                className="px-3 py-2 font-bold flex items-center space-x-1.5 transition border shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-sidebar-card-bg)',
+                  borderColor: 'var(--color-nav-border)',
+                  color: 'var(--color-text-primary)'
+                }}
+              >
+                <Plus className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+                <span>+ Add Card</span>
+              </button>
+            )}
             <button
               onClick={() => setIsCreatingDeck(!isCreatingDeck)}
               className="px-3 py-2 font-bold flex items-center space-x-1.5 transition shadow-sm"

@@ -432,10 +432,217 @@ export const OFFLINE_LEXICON: OfflineEntry[] = [
   { zh: '差不多', en: 'almost; nearly; just about', note: 'Adverb/Adjective.' },
   { zh: '大概', en: 'probably; roughly; approximately', note: 'Adverb.' },
   { zh: '也许', en: 'perhaps; maybe; probably', note: 'Adverb.' },
+
+  // Architecture, Cities, Travel & Culture (Exploring Beijing & Wonders)
+  { zh: '中心', en: 'center; middle; hub; core', note: 'Noun.' },
+  { zh: '市中心', en: 'city center; downtown; city centre', note: 'Noun phrase.' },
+  { zh: '中央', en: 'central; center; middle', note: 'Noun/Adjective.' },
+  { zh: '山', en: 'mountain; hill', note: 'Noun.' },
+  { zh: '高山', en: 'high mountain; mountain peak', note: 'Noun.' },
+  { zh: '山脉', en: 'mountain range; mountain; mountains', note: 'Noun.' },
+  { zh: '群山', en: 'rolling mountains; hills; mountains; green mountains', note: 'Noun.' },
+  { zh: '青山', en: 'green mountains; green hills', note: 'Noun.' },
+  { zh: '城市', en: 'city; town; metropolis', note: 'Noun.' },
+  { zh: '大都市', en: 'metropolis; big city', note: 'Noun.' },
+  { zh: '首都', en: 'capital (city); national capital', note: 'Noun.' },
+  { zh: '古老', en: 'ancient; age-old', note: 'Adjective.' },
+  { zh: '古代', en: 'ancient times; antiquity', note: 'Noun.' },
+  { zh: '建筑', en: 'architecture; building; structure', note: 'Noun/Verb.' },
+  { zh: '建筑物', en: 'building; structure', note: 'Noun.' },
+  { zh: '结构', en: 'structure; composition; construction', note: 'Noun.' },
+  { zh: '庭院', en: 'courtyard; patio', note: 'Noun.' },
+  { zh: '院子', en: 'courtyard; yard', note: 'Noun.' },
+  { zh: '历史', en: 'history; past events', note: 'Noun.' },
+  { zh: '故宫', en: 'Forbidden City; Palace Museum; imperial palace', note: 'Proper noun.' },
+  { zh: '紫禁城', en: 'Forbidden City', note: 'Proper noun.' },
+  { zh: '长城', en: 'Great Wall of China; Great Wall', note: 'Proper noun.' },
+  { zh: '万里长城', en: 'Great Wall of China; Great Wall', note: 'Proper noun.' },
+  { zh: '皇宫', en: 'imperial palace; royal palace', note: 'Noun.' },
+  { zh: '宫殿', en: 'palace', note: 'Noun.' },
+  { zh: '皇帝', en: 'emperor', note: 'Noun.' },
+  { zh: '帝国', en: 'empire; imperial', note: 'Noun/Adjective.' },
+  { zh: '朝代', en: 'dynasty', note: 'Noun.' },
+  { zh: '奇观', en: 'wonder; marvelous spectacle', note: 'Noun.' },
+  { zh: '奇迹', en: 'miracle; wonder; marvel', note: 'Noun.' },
+  { zh: '壮观', en: 'spectacular; grand; magnificent', note: 'Adjective.' },
+  { zh: '美景', en: 'spectacular view; beautiful scenery; view; spectacular views', note: 'Noun.' },
+  { zh: '壮丽景色', en: 'spectacular views; spectacular view; breathtaking scenery', note: 'Noun phrase.' },
+  { zh: '风景', en: 'scenery; landscape; view', note: 'Noun.' },
+  { zh: '景色', en: 'scenery; view; landscape', note: 'Noun.' },
+  { zh: '视野', en: 'field of view; sight; view', note: 'Noun.' },
+  { zh: '令人叹为观止', en: 'breathtaking; magnificent; stunning', note: 'Idiom/Adjective.' },
+  { zh: '令人敬畏', en: 'awe; awe-inspiring; profound sense of awe; sense of awe', note: 'Phrase.' },
+  { zh: '敬畏感', en: 'sense of awe; profound sense of awe; awe', note: 'Noun phrase.' },
+  { zh: '敬畏', en: 'awe; reverence; revere', note: 'Noun/Verb.' },
+  { zh: '深刻', en: 'profound; deep; striking', note: 'Adjective.' },
+  { zh: '苍翠', en: 'green; verdant; lush', note: 'Adjective.' },
+  { zh: '起伏', en: 'rolling; undulating; rise and fall', note: 'Verb/Adjective.' },
+  { zh: '优美', en: 'graceful; fine; exquisite', note: 'Adjective.' },
+  { zh: '优雅', en: 'gracefully; elegant; graceful', note: 'Adverb/Adjective.' },
+  { zh: '蜿蜒', en: 'wind; winding; meandering', note: 'Verb/Adjective.' },
+  { zh: '优美地蜿蜒', en: 'winding gracefully; wind gracefully', note: 'Verb phrase.' },
+  { zh: '融合', en: 'blend; merge; integrate', note: 'Verb.' },
+  { zh: '结合', en: 'combine; unite; integrate', note: 'Verb.' },
+  { zh: '探索', en: 'explore; probe; seek', note: 'Verb.' },
+  { zh: '游览', en: 'visit; tour; go sightseeing', note: 'Verb.' },
+  { zh: '参观', en: 'visit; look around; inspect', note: 'Verb.' },
+  { zh: '石头', en: 'stone; rock', note: 'Noun.' },
+  { zh: '石制', en: 'stone structure; made of stone; stone', note: 'Noun/Adjective.' },
+  { zh: '石制结构', en: 'stone structure; stone building', note: 'Noun phrase.' },
+  { zh: '巨大', en: 'colossal; huge; gigantic; enormous', note: 'Adjective.' },
+  { zh: '庞大', en: 'huge; enormous; colossal', note: 'Adjective.' },
+  { zh: '充满活力', en: 'vibrant; full of vitality', note: 'Phrase/Adjective.' },
+  { zh: '无缝', en: 'seamless; seamlessly', note: 'Adjective/Adverb.' },
+  { zh: '完美', en: 'perfect; flawless', note: 'Adjective.' },
+  { zh: '复合体', en: 'complex; composite entity', note: 'Noun.' },
+  { zh: '作为', en: 'serve; act as; regard as', note: 'Preposition/Verb.' },
+  { zh: '服务', en: 'serve; service', note: 'Verb/Noun.' },
+  { zh: '漫步', en: 'stroll; walk leisurely; walk', note: 'Verb.' },
+  { zh: '行走', en: 'walk; travel on foot', note: 'Verb.' },
+  { zh: '感觉', en: 'feel; sense; feeling', note: 'Verb/Noun.' },
+  { zh: '感受', en: 'feel; experience; perception', note: 'Verb/Noun.' },
+  { zh: '迈步', en: 'step; take a step', note: 'Verb.' },
+  { zh: '踏入', en: 'step into; enter; stepping into', note: 'Verb.' },
+  { zh: '步入', en: 'step back into; step into; enter; stepping back into', note: 'Verb.' },
+  { zh: '永恒', en: 'timeless; eternal; perpetual', note: 'Adjective.' },
+  { zh: '篇章', en: 'chapter; section of writing', note: 'Noun.' },
+  { zh: '章节', en: 'chapter; section', note: 'Noun.' },
+  { zh: '站立', en: 'stand; be standing', note: 'Verb.' },
+  { zh: '耸立', en: 'stand tall; tower; stand atop', note: 'Verb.' },
+  { zh: '耸立在', en: 'standing atop; stand atop', note: 'Verb phrase.' },
+  { zh: '顶上', en: 'atop; on top of; summit', note: 'Noun/Preposition.' },
+  { zh: '提供', en: 'offer; provide; supply; offers', note: 'Verb.' },
+  { zh: '展现', en: 'offer; show; unfold; reveal; offers', note: 'Verb.' },
+  { zh: '不远处', en: 'not far from; nearby', note: 'Phrase.' },
+  { zh: '数百年', en: 'hundreds of years; centuries', note: 'Noun phrase.' },
+  { zh: '五百年', en: 'five hundred years', note: 'Noun phrase.' },
+  { zh: '照顾', en: 'take care of; look after', note: 'Verb phrase.' },
+  { zh: '期待', en: 'look forward to; anticipate', note: 'Verb phrase.' },
+  { zh: '注意', en: 'pay attention to; pay attention', note: 'Verb phrase.' },
+  { zh: '放弃', en: 'give up; abandon', note: 'Verb phrase.' },
+  { zh: '用完', en: 'run out of; run out', note: 'Verb phrase.' },
+  { zh: '意识', en: 'sense; consciousness; awareness', note: 'Noun/Verb.' },
+  { zh: '科技', en: 'technology; science and technology', note: 'Noun.' },
+  { zh: '技术', en: 'technology; technique; skill', note: 'Noun.' },
+  { zh: '发展', en: 'develop; development; growth', note: 'Verb/Noun.' },
+  { zh: '改变', en: 'change; alter; transform', note: 'Verb/Noun.' },
+  { zh: '日常生活', en: 'daily life; everyday life', note: 'Noun phrase.' },
+  { zh: '智能手机', en: 'smartphone; smart phone', note: 'Noun.' },
+  { zh: '语音助手', en: 'voice assistant', note: 'Noun.' },
+  { zh: '自动驾驶', en: 'autonomous driving; self-driving', note: 'Noun.' },
+  { zh: '汽车', en: 'car; vehicle; automobile', note: 'Noun.' },
+  { zh: '应用', en: 'application; apply; use', note: 'Noun/Verb.' },
+  { zh: '无处不在', en: 'everywhere; ubiquitous', note: 'Idiom/Adjective.' },
+  { zh: '领域', en: 'field; domain; realm', note: 'Noun.' },
+  { zh: '语言学习', en: 'language learning', note: 'Noun phrase.' },
+  { zh: '跨语言', en: 'cross-language; cross-lingual', note: 'Adjective.' },
+  { zh: '交流', en: 'communication; exchange; communicate', note: 'Verb/Noun.' },
+  { zh: '沟通', en: 'communicate; connect; communication', note: 'Verb/Noun.' },
+  { zh: '前所未有', en: 'unprecedented; never before', note: 'Idiom.' },
+  { zh: '便捷', en: 'convenient; quick and convenient', note: 'Adjective.' },
+  { zh: '学习者', en: 'learner; student', note: 'Noun.' },
+  { zh: '随时随地', en: 'anytime and anywhere; anytime', note: 'Idiom/Adverb.' },
+  { zh: '实时', en: 'real-time; in real time', note: 'Adverb/Adjective.' },
+  { zh: '翻译', en: 'translate; translation; interpreter', note: 'Verb/Noun.' },
+  { zh: '语境', en: 'context; linguistic context', note: 'Noun.' },
+  { zh: '分析', en: 'analyze; analysis', note: 'Verb/Noun.' },
+  { zh: '深层', en: 'deep; deep layer', note: 'Adjective.' },
+  { zh: '含义', en: 'meaning; connotation; implication', note: 'Noun.' },
+  { zh: '意思', en: 'meaning; idea; interest', note: 'Noun.' },
+  { zh: '文化', en: 'culture; cultural', note: 'Noun/Adjective.' },
+  { zh: '背景', en: 'background; backdrop; context', note: 'Noun.' },
+  { zh: '人类', en: 'humanity; human race; human beings', note: 'Noun.' },
+  { zh: '课题', en: 'topic; issue; problem; research topic', note: 'Noun.' },
+  { zh: '享受', en: 'enjoy; enjoyment', note: 'Verb/Noun.' },
+  { zh: '便利', en: 'convenience; convenient', note: 'Noun/Adjective.' },
+  { zh: '同时', en: 'at the same time; simultaneously; while', note: 'Conjunction/Adverb.' },
+  { zh: '保持', en: 'maintain; keep; preserve', note: 'Verb.' },
+  { zh: '独立', en: 'independent; independence', note: 'Adjective/Noun.' },
+  { zh: '思考', en: 'think; ponder; reflection; thinking', note: 'Verb/Noun.' },
+  { zh: '创造力', en: 'creativity; creative power', note: 'Noun.' },
+  { zh: '需要', en: 'need; require; demand', note: 'Verb/Noun.' },
+  { zh: '探索', en: 'explore; quest; probe', note: 'Verb/Noun.' },
+  { zh: '未知', en: 'unknown; unrevealed', note: 'Adjective/Noun.' },
+  { zh: '过程', en: 'process; course of events', note: 'Noun.' },
+  { zh: '不断', en: 'continuously; unceasingly; non-stop', note: 'Adverb.' },
+  { zh: '寻求', en: 'seek; look for; aspire to', note: 'Verb.' },
+  { zh: '平衡', en: 'balance; equilibrium; poise', note: 'Noun/Verb.' },
+  // English phrase matches & common contextual expressions
+  { zh: '连绵起伏的青山', en: 'rolling green mountains; rolling green hills; green mountains', note: 'Noun phrase.' },
+  { zh: '群山', en: 'rolling mountains; mountains; mountain range; hills', note: 'Noun.' },
+  { zh: '青山', en: 'green mountains; green hills; verdant mountains', note: 'Noun.' },
+  { zh: '连绵起伏', en: 'rolling; undulating; rolling gracefully; rolling hills', note: 'Adjective/Verb.' },
+  { zh: '站立在巨大的石质建筑之上', en: 'standing atop this colossal stone structure; standing atop the colossal stone structure', note: 'Verb phrase.' },
+  { zh: '巨大的石质建筑', en: 'colossal stone structure; massive stone structure; huge stone building', note: 'Noun phrase.' },
+  { zh: '巨大的石质结构', en: 'colossal stone structure; colossal structure; stone structure', note: 'Noun phrase.' },
+  { zh: '巨大', en: 'colossal; huge; massive; gigantic; tremendous', note: 'Adjective.' },
+  { zh: '石质', en: 'stone; masonry; rock', note: 'Adjective/Noun.' },
+  { zh: '结构', en: 'structure; framework; composition', note: 'Noun.' },
+  { zh: '建筑', en: 'structure; building; architecture', note: 'Noun/Verb.' },
+  { zh: '壮丽景色', en: 'spectacular views; magnificent views; breathtaking scenery', note: 'Noun phrase.' },
+  { zh: '壮丽的景色', en: 'spectacular views; spectacular view; stunning scenery; magnificent view', note: 'Noun phrase.' },
+  { zh: '景色', en: 'views; scenery; landscape; view; sight', note: 'Noun.' },
+  { zh: '壮丽', en: 'spectacular; magnificent; grand; majestic', note: 'Adjective.' },
+  { zh: '深深的敬畏感', en: 'profound sense of awe; deep sense of awe; feeling of awe', note: 'Noun phrase.' },
+  { zh: '敬畏之情', en: 'sense of awe; feelings of awe; awe and reverence', note: 'Noun phrase.' },
+  { zh: '敬畏', en: 'awe; reverent fear; respect and awe', note: 'Noun/Verb.' },
+  { zh: '深厚', en: 'profound; deep; solid', note: 'Adjective.' },
+  { zh: '深刻', en: 'profound; deep; insightful', note: 'Adjective.' },
+  { zh: '深沉', en: 'profound; deep; contemplative', note: 'Adjective.' },
+  { zh: '蜿蜒穿行', en: 'winding gracefully; winding; meandering gracefully', note: 'Verb phrase.' },
+  { zh: '蜿蜒', en: 'winding; meandering; sinuous', note: 'Adjective/Verb.' },
+  { zh: '优雅地', en: 'gracefully; elegantly; gracefully over', note: 'Adverb.' },
+  { zh: '优雅', en: 'graceful; elegant; graceful and poised', note: 'Adjective.' },
+  { zh: '万里长城', en: 'Great Wall of China; Great Wall; Great Wall of china', note: 'Proper noun.' },
+  { zh: '中国万里长城', en: 'the Great Wall of China; Great Wall of China', note: 'Proper noun.' },
+  { zh: '长城', en: 'Great Wall; long wall', note: 'Proper noun.' },
+  { zh: '市中心', en: 'city center; downtown; center of the city; town center', note: 'Noun.' },
+  { zh: '离市中心不远', en: 'not far from the city center; close to the city center', note: 'Phrase.' },
+  { zh: '离...不远', en: 'not far from; close to; nearby', note: 'Preposition phrase.' },
+  { zh: '座落', en: 'lies; is situated; located; stands', note: 'Verb.' },
+  { zh: '位于', en: 'lies; located in; situated at; is located', note: 'Verb.' },
+  { zh: '跨越', en: 'over; across; straddle; spans over', note: 'Verb/Preposition.' },
+  { zh: '踏入永恒的历史篇章', en: 'stepping back into a timeless chapter of history; stepping into a timeless chapter of history', note: 'Phrase.' },
+  { zh: '历史篇章', en: 'chapter of history; historical chapter; pages of history', note: 'Noun phrase.' },
+  { zh: '永恒的', en: 'timeless; eternal; everlasting', note: 'Adjective.' },
+  { zh: '回溯', en: 'stepping back; tracing back; look back', note: 'Verb.' },
+  { zh: '重温', en: 'stepping back into; revisit; relive', note: 'Verb.' },
+  { zh: '呈现出', en: 'offers; presents; displays; brings about', note: 'Verb.' },
+  { zh: '带来', en: 'offers; brings; produces; yields', note: 'Verb.' },
+  { zh: '感受', en: 'sense; feel; experience; impression', note: 'Noun/Verb.' },
+  { zh: '感觉', en: 'sense; feeling; sensation', note: 'Noun/Verb.' },
+  { zh: '而且', en: 'and; furthermore; moreover', note: 'Conjunction.' },
+  { zh: '以及', en: 'and; as well as; along with', note: 'Conjunction.' },
+  { zh: '之上', en: 'atop; above; on top of; atop this', note: 'Preposition.' },
+  { zh: '这所', en: 'this; this particular', note: 'Demonstrative.' },
+  { zh: '这座', en: 'this; this massive', note: 'Demonstrative.' },
+  { zh: '这个', en: 'this; this one', note: 'Demonstrative.' },
+  { zh: '那个', en: 'that; that one', note: 'Demonstrative.' },
+  { zh: '这些', en: 'these', note: 'Demonstrative.' },
+  { zh: '那些', en: 'those', note: 'Demonstrative.' },
+  { zh: '令人惊叹', en: 'spectacular; breathtaking; amazing', note: 'Adjective.' },
+  { zh: '令人敬畏', en: 'awe-inspiring; awe; profound sense of awe', note: 'Adjective.' },
+  { zh: '上升', en: 'rise; ascend; go up; rising; climb', note: 'Verb.' },
+  { zh: '升起', en: 'rise; ascend; lift; rising', note: 'Verb.' },
+  { zh: '升', en: 'rise; hoist; ascend; promote; liter', note: 'Verb/Noun.' },
+  { zh: '弥漫', en: 'permeate; fill the air; suffuse; spread', note: 'Verb.' },
+  { zh: '烟雾', en: 'smoke; mist; smog; haze', note: 'Noun.' },
+  { zh: '铜香', en: 'bronze incense; copper incense', note: 'Noun.' },
+  { zh: '药片', en: 'tablet; pill; medicine tablet', note: 'Noun.' },
+  { zh: '碑文', en: 'tablet inscription; stone tablet; inscription', note: 'Noun.' },
+  { zh: '两边', en: 'both sides; either side', note: 'Noun.' },
 ];
 
 // Single character fallback dictionary
 export const SINGLE_CHAR_DICT: Record<string, string> = {
+  升: 'rise / ascend / hoist / liter',
+  烟: 'smoke / tobacco / mist',
+  雾: 'fog / mist',
+  铜: 'copper / bronze',
+  香: 'incense / fragrant / sweet-smelling',
+  片: 'slice / piece / tablet / flake',
+  药: 'medicine / drug / remedy',
+  碑: 'stone tablet / monument / stele',
   但: 'but / however / yet',
   怎: 'how / why',
   么: 'particle / interrogative suffix',
@@ -712,6 +919,91 @@ const ZH_LEXICON_MAP = new Map<string, OfflineEntry>();
 const EN_LEXICON_MAP = new Map<string, OfflineEntry>();
 const EN_LOWER_INDEX = new Map<string, OfflineEntry>();
 
+/**
+ * Generate stem variations of an English word (plural, tense, adverbs)
+ */
+export function getEnglishStems(word: string): string[] {
+  const clean = word.toLowerCase().trim();
+  const stems = new Set<string>([clean]);
+
+  // Strip non-alphanumeric edges
+  const noPunct = clean.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '');
+  if (noPunct) stems.add(noPunct);
+
+  // Plurals and endings
+  if (clean.endsWith('ies') && clean.length > 4) {
+    stems.add(clean.slice(0, -3) + 'y'); // cities -> city
+  }
+  if (clean.endsWith('es') && clean.length > 3) {
+    stems.add(clean.slice(0, -2)); // watches -> watch, courtyards
+    stems.add(clean.slice(0, -1)); // palaces -> palace
+  }
+  if (clean.endsWith('s') && !clean.endsWith('ss') && clean.length > 3) {
+    stems.add(clean.slice(0, -1)); // mountains -> mountain, wonders -> wonder, centers -> center
+  }
+
+  // -ing forms
+  if (clean.endsWith('ing') && clean.length > 4) {
+    stems.add(clean.slice(0, -3)); // visiting -> visit, standing -> stand, rolling -> roll, winding -> wind
+    stems.add(clean.slice(0, -3) + 'e'); // stepping -> step
+    const base = clean.slice(0, -3);
+    if (base.length > 2 && base[base.length - 1] === base[base.length - 2]) {
+      stems.add(base.slice(0, -1)); // stepping -> step
+    }
+  }
+
+  // -ed forms
+  if (clean.endsWith('ed') && clean.length > 3) {
+    stems.add(clean.slice(0, -2)); // walked -> walk
+    stems.add(clean.slice(0, -1)); // served -> serve, lived -> live
+    const base = clean.slice(0, -2);
+    if (base.length > 2 && base[base.length - 1] === base[base.length - 2]) {
+      stems.add(base.slice(0, -1)); // stopped -> stop
+    }
+  }
+
+  // -ly forms
+  if (clean.endsWith('ly') && clean.length > 4) {
+    stems.add(clean.slice(0, -2)); // gracefully -> graceful
+  }
+
+  return Array.from(stems);
+}
+
+/**
+ * Intelligent English lookup that checks direct glosses, stems, and definitions
+ */
+export function findEnglishLexiconMatch(cleanText: string): OfflineEntry | null {
+  const lower = cleanText.toLowerCase().trim();
+  if (!lower) return null;
+
+  // 1. Direct index match
+  if (EN_LOWER_INDEX.has(lower)) {
+    return EN_LOWER_INDEX.get(lower)!;
+  }
+
+  // 2. Stemming checks
+  const stems = getEnglishStems(lower);
+  for (const stem of stems) {
+    if (EN_LOWER_INDEX.has(stem)) {
+      return EN_LOWER_INDEX.get(stem)!;
+    }
+  }
+
+  // 3. Substring / phrase match in OFFLINE_LEXICON
+  for (const entry of OFFLINE_LEXICON) {
+    const entryLower = entry.en.toLowerCase();
+    for (const stem of stems) {
+      const regex = new RegExp(`\\b${stem}\\b`, 'i');
+      if (regex.test(entryLower)) {
+        return entry;
+      }
+    }
+  }
+
+  return null;
+}
+
 // Initialize index maps once at startup
 for (const entry of OFFLINE_LEXICON) {
   if (entry.zh) {
@@ -720,11 +1012,18 @@ for (const entry of OFFLINE_LEXICON) {
   if (entry.en) {
     const rawEn = entry.en.trim();
     EN_LEXICON_MAP.set(rawEn, entry);
-    // Index each synonym / primary gloss in lowercase for fast English lookups
-    const glosses = rawEn.split(/;/).map((g) => g.trim().toLowerCase());
+    // Index each synonym, gloss, and clean token in lowercase for fast English lookups
+    const glosses = rawEn.split(/[;/]/).map((g) => g.trim().toLowerCase());
     for (const g of glosses) {
-      if (g && !EN_LOWER_INDEX.has(g)) {
-        EN_LOWER_INDEX.set(g, entry);
+      if (g) {
+        if (!EN_LOWER_INDEX.has(g)) {
+          EN_LOWER_INDEX.set(g, entry);
+        }
+        // Also index without parentheses notes (e.g. "center (of town)" -> "center")
+        const withoutParen = g.replace(/\(.*?\)/g, '').trim();
+        if (withoutParen && !EN_LOWER_INDEX.has(withoutParen)) {
+          EN_LOWER_INDEX.set(withoutParen, entry);
+        }
       }
     }
   }
@@ -738,9 +1037,10 @@ const ASYNC_PHRASE_CACHE = new Map<string, string>();
 
 /**
  * Generate accurate Hanyu Pinyin with tone marks using pinyin-pro library with instant caching.
+ * Strictly checks that text contains Chinese characters to prevent outputting spaced roman letters.
  */
 export function getOfflinePinyin(text: string): string {
-  if (!text) return '';
+  if (!text || !/[\u4e00-\u9fa5]/.test(text)) return '';
   const cached = PINYIN_CACHE.get(text);
   if (cached !== undefined) return cached;
 
@@ -886,44 +1186,290 @@ function composeEnglishTranslation(segments: { word: string; mean: string }[], o
 }
 
 /**
- * Client-side/Offline Google Translate GTX endpoint fetcher.
- * Uses Google Translate's web engine to translate whole phrases & sentences accurately as a single unit without API keys.
+ * Compose natural Chinese phrase and sentence translation from English text and grammatical constituents.
+ */
+export function composeChineseTranslationFromEnglish(englishText: string): { zh: string; note: string } {
+  const clean = englishText.trim();
+  if (!clean) return { zh: '', note: '' };
+
+  // 1. Direct exact or stem match check
+  const exact = findEnglishLexiconMatch(clean);
+  if (exact) {
+    return { zh: exact.zh, note: exact.note || `Translation for "${clean}"` };
+  }
+
+  // 2. Split into clauses/sentences by standard English punctuation
+  const clauseRegex = /([.,!?;:]+|\n+)/;
+  const rawParts = clean.split(clauseRegex);
+
+  const translatedParts: string[] = [];
+
+  const CORE_EN_MAP: Record<string, string> = {
+    the: '',
+    a: '一个',
+    an: '一个',
+    this: '这',
+    that: '那',
+    these: '这些',
+    those: '那些',
+    in: '在',
+    on: '在...之上',
+    at: '在',
+    atop: '在...顶上',
+    of: '的',
+    and: '和',
+    or: '或者',
+    with: '带着',
+    without: '没有',
+    from: '从',
+    to: '到',
+    into: '进入',
+    over: '越过',
+    under: '在...之下',
+    through: '穿过',
+    by: '通过',
+    is: '是',
+    are: '是',
+    was: '是',
+    were: '是',
+    be: '是',
+    been: '曾是',
+    being: '正在',
+    have: '有',
+    has: '有',
+    had: '曾经有',
+    not: '不',
+    no: '没有',
+    offers: '呈现出',
+    offer: '提供',
+    presents: '展现出',
+    standing: '站立在',
+    stand: '站立',
+    colossal: '巨大的',
+    stone: '石质',
+    structure: '建筑',
+    structures: '建筑群',
+    spectacular: '壮丽的',
+    views: '景色',
+    view: '风景',
+    profound: '深深的',
+    sense: '感觉',
+    awe: '敬畏',
+    rolling: '连绵起伏的',
+    green: '绿色的',
+    mountains: '青山',
+    mountain: '高山',
+    hills: '山丘',
+    city: '城市',
+    center: '中心',
+    far: '遥远',
+    lies: '座落着',
+    winding: '蜿蜒穿行',
+    gracefully: '优美地',
+    timeless: '永恒的',
+    chapter: '篇章',
+    history: '历史',
+    stepping: '迈步踏入',
+    step: '跨出',
+    back: '回到',
+    great: '伟大的',
+    wall: '城墙',
+    china: '中国',
+    ancient: '古老的',
+    modern: '现代的',
+    culture: '文化',
+    life: '生活',
+    daily: '日常',
+  };
+
+  for (let p = 0; p < rawParts.length; p++) {
+    const part = rawParts[p].trim();
+    if (!part) continue;
+
+    // Preserve punctuation
+    if (/^[.,!?;:]+$/.test(part)) {
+      const punctMap: Record<string, string> = {
+        '.': '。',
+        ',': '，',
+        '!': '！',
+        '?': '？',
+        ';': '；',
+        ':': '：',
+      };
+      translatedParts.push(punctMap[part] || '，');
+      continue;
+    }
+
+    const words = part.match(/[a-zA-Z0-9'-]+/g) || [];
+    if (words.length === 0) continue;
+
+    let i = 0;
+    const clauseTokens: string[] = [];
+
+    while (i < words.length) {
+      let matched = false;
+
+      // Try greedy n-gram matches from length 6 down to 1
+      for (let len = Math.min(6, words.length - i); len >= 1; len--) {
+        const span = words.slice(i, i + len).join(' ').toLowerCase();
+        const found = findEnglishLexiconMatch(span);
+        if (found) {
+          clauseTokens.push(found.zh);
+          i += len;
+          matched = true;
+          break;
+        }
+      }
+
+      if (!matched) {
+        const currentWord = words[i].toLowerCase();
+        const singleFound = findEnglishLexiconMatch(currentWord);
+
+        if (singleFound) {
+          clauseTokens.push(singleFound.zh);
+        } else if (CORE_EN_MAP[currentWord] !== undefined) {
+          if (CORE_EN_MAP[currentWord]) {
+            clauseTokens.push(CORE_EN_MAP[currentWord]);
+          }
+        } else {
+          // Check stem
+          const stems = getEnglishStems(currentWord);
+          let stemMatched = false;
+          for (const s of stems) {
+            const sMatch = findEnglishLexiconMatch(s) || (CORE_EN_MAP[s] ? { zh: CORE_EN_MAP[s] } : null);
+            if (sMatch) {
+              clauseTokens.push(sMatch.zh);
+              stemMatched = true;
+              break;
+            }
+          }
+          if (!stemMatched) {
+            // Keep word if unknown
+            clauseTokens.push(words[i]);
+          }
+        }
+        i += 1;
+      }
+    }
+
+    if (clauseTokens.length > 0) {
+      let joined = clauseTokens.join('');
+      // Clean up common repetitive grammatical particles
+      joined = joined
+        .replace(/的的/g, '的')
+        .replace(/在在/g, '在')
+        .replace(/一个一个/g, '一个')
+        .replace(/之的上/g, '之上')
+        .replace(/在\.\.\.之上/g, '之上')
+        .replace(/在\.\.\.顶上/g, '顶上');
+      translatedParts.push(joined);
+    }
+  }
+
+  let finalZh = translatedParts.join('').trim();
+  // Ensure Chinese punctuation formatting
+  finalZh = finalZh.replace(/([，。！？；])\1+/g, '$1');
+
+  return {
+    zh: finalZh || clean,
+    note: `Composed translation from contextual constituents for "${clean}"`,
+  };
+}
+
+function sanitizeTranslationResponse(raw: string, targetLang: string): string {
+  if (!raw) return '';
+  let clean = raw.replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
+
+  if (targetLang.startsWith('zh')) {
+    // When translating to Chinese:
+    // If output contains Chinese characters, strip out extraneous Latin comments/jargon from translation memory
+    // e.g. "上升air pressure has no change" -> "上升"
+    // e.g. "上升; air pressure has no change" -> "上升"
+    // e.g. "上升 (air pressure)" -> "上升"
+    if (/[\u4e00-\u9fa5]/.test(clean)) {
+      // Remove bracketed notes
+      clean = clean.replace(/\([^)]*[a-zA-Z][^)]*\)/g, '').replace(/\[[^\]]*[a-zA-Z][^\]]*\]/g, '').trim();
+      // Remove trailing semicolon/pipe/hyphen + English notes
+      clean = clean.replace(/[;|,–—-]\s*[a-zA-Z0-9\s.,'"]+$/g, '').trim();
+      // Extract the leading Chinese component if followed by multi-word English notes
+      const cjkMatch = clean.match(/^([\u4e00-\u9fa5\u3000-\u303f\uff01-\uff5e0-9\s]+?)(?:[a-zA-Z]{2,}[\s\S]*)?$/);
+      if (cjkMatch && cjkMatch[1] && /[\u4e00-\u9fa5]/.test(cjkMatch[1])) {
+        clean = cjkMatch[1].trim();
+      }
+    }
+  }
+
+  return clean;
+}
+
+/**
+ * Client-side/Offline Multi-tier Translate endpoint fetcher.
+ * Uses Google Translate GTX & MyMemory web engines to translate whole phrases & sentences accurately as a single unit without API keys.
  */
 async function fetchGoogleTranslatePhrase(text: string, sourceLang = 'zh-CN', targetLang = 'en'): Promise<string | null> {
   if (!text || text.trim().length === 0) return null;
-  const cacheKey = `${sourceLang}:${targetLang}:${text.trim()}`;
+  const clean = text.trim();
+  const cacheKey = `${sourceLang}:${targetLang}:${clean}`;
   if (ASYNC_PHRASE_CACHE.has(cacheKey)) {
     return ASYNC_PHRASE_CACHE.get(cacheKey)!;
   }
 
-  try {
-    const sl = sourceLang.startsWith('zh') ? 'zh-CN' : 'en';
-    const tl = targetLang.startsWith('en') ? 'en' : 'zh-CN';
+  const sl = sourceLang.startsWith('zh') ? 'zh-CN' : 'en';
+  const tl = targetLang.startsWith('en') ? 'en' : 'zh-CN';
 
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text.trim())}`;
-    
+  // 1. Google Translate GTX
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(clean)}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2.0s reliable timeout
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4.0s timeout
 
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
 
-    if (!res.ok) return null;
-    const data = await res.json();
-
-    if (Array.isArray(data) && Array.isArray(data[0])) {
-      const translatedParts = data[0].map((item: any) => item[0]).filter(Boolean);
-      const fullTranslation = translatedParts.join('').trim();
-      if (fullTranslation && fullTranslation !== text) {
-        if (ASYNC_PHRASE_CACHE.size < 1000) {
-          ASYNC_PHRASE_CACHE.set(cacheKey, fullTranslation);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && Array.isArray(data[0])) {
+        const translatedParts = data[0].map((item: any) => item[0]).filter(Boolean);
+        let fullTranslation = translatedParts.join('').trim();
+        fullTranslation = sanitizeTranslationResponse(fullTranslation, tl);
+        if (fullTranslation && fullTranslation.toLowerCase() !== clean.toLowerCase()) {
+          if (ASYNC_PHRASE_CACHE.size < 1000) {
+            ASYNC_PHRASE_CACHE.set(cacheKey, fullTranslation);
+          }
+          return fullTranslation;
         }
-        return fullTranslation;
       }
     }
   } catch (e) {
-    // Network unavailable or timed out - fall back to offline dictionary engine
+    // Attempt secondary fallback provider
   }
+
+  // 2. MyMemory Translation API fallback
+  try {
+    const myMemoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${sl}|${tl}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    const res = await fetch(myMemoryUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      const match = data?.responseData?.translatedText;
+      if (match && typeof match === 'string' && match.trim()) {
+        const cleanedMatch = sanitizeTranslationResponse(match, tl);
+        if (cleanedMatch && cleanedMatch.toLowerCase() !== clean.toLowerCase()) {
+          if (ASYNC_PHRASE_CACHE.size < 1000) {
+            ASYNC_PHRASE_CACHE.set(cacheKey, cleanedMatch);
+          }
+          return cleanedMatch;
+        }
+      }
+    }
+  } catch (e) {
+    // Offline composition will handle
+  }
+
   return null;
 }
 
@@ -937,7 +1483,8 @@ export function translateOffline(
 ): TranslationResult {
   const cleanText = text.trim();
   const cleanContext = (context || text).trim();
-  const memKey = `${mode}:${cleanText}:${cleanContext}`;
+  const isEnToZh = mode === 'en-to-zh' || !/[\u4e00-\u9fa5]/.test(cleanText);
+  const memKey = `${isEnToZh ? 'en-to-zh' : 'zh-to-en'}:${cleanText}:${cleanContext}`;
 
   const cachedResult = OFFLINE_TRANSLATION_MEM_CACHE.get(memKey);
   if (cachedResult) {
@@ -946,7 +1493,7 @@ export function translateOffline(
 
   let result: TranslationResult;
 
-  if (mode === 'zh-to-en') {
+  if (!isEnToZh) {
     const directMatch = ZH_LEXICON_MAP.get(cleanText);
     const py = getOfflinePinyin(cleanText);
     const breakdown = getOfflineBreakdown(cleanText);
@@ -965,44 +1512,57 @@ export function translateOffline(
       }
     }
 
+    const contextSegments = segmentChineseText(cleanContext);
+    const contextTranslation = composeEnglishTranslation(contextSegments, cleanContext);
+
     result = {
       chinese: cleanText,
       pinyin: py,
-      english: englishMeaning,
+      english: englishMeaning || cleanText,
       contextSentence: cleanContext,
-      contextTranslation: `"${cleanContext}"`,
+      contextTranslation: contextTranslation ? `"${contextTranslation}"` : `"${cleanContext}"`,
       grammaticalNote: grammaticalNote || 'Offline dictionary entry with smart Pinyin synthesis.',
       breakdown,
-      mode,
+      mode: 'zh-to-en',
       selectedText: cleanText,
       source: 'offline-cedict',
     };
   } else {
-    const lower = cleanText.toLowerCase();
-    let match = EN_LOWER_INDEX.get(lower);
+    // English to Chinese lookup with robust composition engine
+    let chinese = '';
+    let grammaticalNote = '';
 
-    if (!match) {
-      for (const entry of OFFLINE_LEXICON) {
-        if (entry.en.toLowerCase().includes(lower)) {
-          match = entry;
-          break;
-        }
-      }
+    const directMatch = findEnglishLexiconMatch(cleanText);
+    if (directMatch) {
+      chinese = directMatch.zh;
+      grammaticalNote = directMatch.note || `Chinese translation for "${cleanText}"`;
+    } else {
+      const composed = composeChineseTranslationFromEnglish(cleanText);
+      chinese = composed.zh;
+      grammaticalNote = composed.note;
     }
 
-    const chinese = match ? match.zh : cleanText;
-    const py = getOfflinePinyin(chinese);
-    const breakdown = getOfflineBreakdown(chinese);
+    const isChineseFound = /[\u4e00-\u9fa5]/.test(chinese);
+    const py = isChineseFound ? getOfflinePinyin(chinese) : '';
+    const breakdown = isChineseFound ? getOfflineBreakdown(chinese) : [];
+
+    let contextTranslation = '';
+    if (cleanContext === cleanText) {
+      contextTranslation = chinese;
+    } else {
+      const ctxComposed = composeChineseTranslationFromEnglish(cleanContext);
+      contextTranslation = ctxComposed.zh;
+    }
 
     result = {
-      chinese,
+      chinese: isChineseFound ? chinese : cleanText,
       pinyin: py,
       english: cleanText,
       contextSentence: cleanContext,
-      contextTranslation: `"${cleanContext}"`,
-      grammaticalNote: match?.note || 'Offline English-Chinese lexicon lookup.',
+      contextTranslation: contextTranslation ? `"${contextTranslation}"` : `"${cleanContext}"`,
+      grammaticalNote: grammaticalNote || 'Offline English-Chinese composition lookup.',
       breakdown,
-      mode,
+      mode: 'en-to-zh',
       selectedText: cleanText,
       source: 'offline-cedict',
     };
@@ -1017,8 +1577,8 @@ export function translateOffline(
 
 /**
  * Asynchronous translation engine for words, whole phrases, and context sentences.
- * Uses Google Translate GTX framework for high-accuracy phrase & sentence translation,
- * falling back gracefully to indexed CC-CEDICT offline rules.
+ * Uses Google Translate GTX / MyMemory frameworks for high-accuracy phrase & sentence translation,
+ * falling back gracefully to indexed CC-CEDICT offline composition rules.
  */
 export async function translateOfflineAsync(
   text: string,
@@ -1028,8 +1588,9 @@ export async function translateOfflineAsync(
   const cleanText = text.trim();
   const cleanContext = (context || text).trim();
 
-  const srcLang = mode === 'zh-to-en' ? 'zh-CN' : 'en';
-  const tgtLang = mode === 'zh-to-en' ? 'en' : 'zh-CN';
+  const isEnToZh = mode === 'en-to-zh' || !/[\u4e00-\u9fa5]/.test(cleanText);
+  const srcLang = isEnToZh ? 'en' : 'zh-CN';
+  const tgtLang = isEnToZh ? 'zh-CN' : 'en';
 
   // 1. Fetch phrase translation and full context translation
   try {
@@ -1038,30 +1599,44 @@ export async function translateOfflineAsync(
       cleanContext !== cleanText ? fetchGoogleTranslatePhrase(cleanContext, srcLang, tgtLang) : Promise.resolve(null),
     ]);
 
-    if (phraseTranslation) {
-      const targetForPinyin = mode === 'zh-to-en' ? cleanText : phraseTranslation;
-      const py = getOfflinePinyin(targetForPinyin);
-      const breakdown = getOfflineBreakdown(targetForPinyin);
+    if (phraseTranslation && phraseTranslation.trim().toLowerCase() !== cleanText.toLowerCase()) {
+      const zhWord = isEnToZh ? phraseTranslation.trim() : cleanText;
+      const enWord = isEnToZh ? cleanText : phraseTranslation.trim();
+      const py = getOfflinePinyin(zhWord);
+      const breakdown = getOfflineBreakdown(zhWord);
+
+      let finalCtxTranslation = contextTranslation ? `"${contextTranslation.trim()}"` : '';
+      if (!finalCtxTranslation) {
+        if (isEnToZh) {
+          const ctxComp = composeChineseTranslationFromEnglish(cleanContext);
+          finalCtxTranslation = `"${ctxComp.zh}"`;
+        } else {
+          const ctxSegs = segmentChineseText(cleanContext);
+          finalCtxTranslation = `"${composeEnglishTranslation(ctxSegs, cleanContext)}"`;
+        }
+      }
 
       return {
-        chinese: mode === 'zh-to-en' ? cleanText : phraseTranslation,
+        chinese: zhWord,
         pinyin: py,
-        english: mode === 'zh-to-en' ? phraseTranslation : cleanText,
+        english: enWord,
         contextSentence: cleanContext,
-        contextTranslation: contextTranslation ? `"${contextTranslation}"` : `"${cleanContext}"`,
-        grammaticalNote: 'Full-phrase translation via Google Translate engine.',
+        contextTranslation: finalCtxTranslation,
+        grammaticalNote: isEnToZh
+          ? 'Full-phrase English-to-Chinese translation via neural translation engine.'
+          : 'Full-phrase translation via Google Translate engine.',
         breakdown,
-        mode,
+        mode: isEnToZh ? 'en-to-zh' : 'zh-to-en',
         selectedText: cleanText,
         source: 'offline-google-gtx',
       };
     }
   } catch (e) {
-    // Fall back to offline lexicon
+    // Fall back to offline lexicon & composition engine
   }
 
-  // 2. Fall back to offline lexicon & smart segment engine
-  return translateOffline(cleanText, cleanContext, mode);
+  // 2. Fall back to offline lexicon & smart composition engine
+  return translateOffline(cleanText, cleanContext, isEnToZh ? 'en-to-zh' : 'zh-to-en');
 }
 
 
