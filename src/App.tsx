@@ -21,9 +21,10 @@ export default function App() {
     saveStoredTheme(themeConfig);
   }, [themeConfig]);
 
-  // Offline engine by default; Gemini AI is an optional experimental setting
+  // AI Translation engine by default with offline fallback
   const [useAiTranslation, setUseAiTranslation] = useState<boolean>(() => {
-    return localStorage.getItem('useAiTranslation') === 'true';
+    const stored = localStorage.getItem('useAiTranslation');
+    return stored !== null ? stored === 'true' : true;
   });
 
   // User-configurable shortcut key to save card on hover (default 's')

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Check, RefreshCw, AlertCircle, ShieldCheck, ArrowRight } from 'lucide-react';
-import { Flashcard, Deck } from '../types';
+import { Flashcard, Deck, CharacterBreakdown } from '../types';
 
 interface ScannedCardResult {
   id: string;
   chinese: string;
   pinyin: string;
   english: string;
+  breakdown?: CharacterBreakdown[];
   contextSentence: string;
   contextTranslation: string;
   grammaticalNote: string;
@@ -84,8 +85,10 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
       if (scanned) {
         return {
           ...original,
+          chinese: scanned.chinese || original.chinese,
           pinyin: scanned.pinyin || original.pinyin,
           english: scanned.english || original.english,
+          breakdown: scanned.breakdown && scanned.breakdown.length > 0 ? scanned.breakdown : original.breakdown,
           contextSentence: scanned.contextSentence || original.contextSentence,
           contextTranslation: scanned.contextTranslation || original.contextTranslation,
           grammaticalNote: scanned.grammaticalNote || original.grammaticalNote,
@@ -106,7 +109,7 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div 
-        className="w-full max-w-2xl shadow-2xl p-6 relative space-y-5 font-sans max-h-[90vh] flex flex-col border rounded-none"
+        className="w-full max-w-3xl shadow-2xl p-6 relative space-y-5 font-sans max-h-[90vh] flex flex-col border rounded-none"
         style={{
           backgroundColor: 'var(--color-reader-panel-bg)',
           borderColor: 'var(--color-nav-border)',
@@ -119,7 +122,7 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
             <Sparkles className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
             <div>
               <h3 className="text-base font-bold">
-                Gemini Deck Nuance Audit
+                Gemini Deck Nuance & Character Definition Audit
               </h3>
               <p className="text-xs opacity-80">
                 Deck: <span className="font-semibold" style={{ color: 'var(--color-accent)' }}>{selectedDeckName}</span> ({cardsToScan.length} cards)
@@ -156,10 +159,10 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
               </div>
               <div className="space-y-1">
                 <h4 className="text-sm font-bold">
-                  Scan Deck for Translation Nuance & Accuracy
+                  Scan Deck for Character Definitions & Translation Accuracy
                 </h4>
-                <p className="text-xs opacity-80 max-w-md mx-auto leading-relaxed">
-                  Gemini AI will scan all <strong className="opacity-100">{cardsToScan.length}</strong> cards in this deck to refine literal glosses into natural idiomatic meanings, verify Pinyin tone marks, and add contextual grammatical notes.
+                <p className="text-xs opacity-80 max-w-lg mx-auto leading-relaxed">
+                  Gemini AI audits all <strong className="opacity-100">{cardsToScan.length}</strong> cards in this deck. It checks and refines individual Chinese character definitions and headwords <strong className="text-amber-300">if needed</strong>, while leaving accurate character definitions and glosses <strong className="text-emerald-300">untouched</strong>.
                 </p>
               </div>
 
@@ -202,10 +205,10 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
               <RefreshCw className="w-8 h-8 animate-spin mx-auto" style={{ color: 'var(--color-accent)' }} />
               <div className="space-y-1">
                 <p className="text-sm font-bold">
-                  Gemini AI is auditing deck nuances...
+                  Gemini AI is auditing deck and character definitions...
                 </p>
                 <p className="text-xs font-mono opacity-80">
-                  Checking {cardsToScan.length} cards for idiomatic accuracy & tone marks
+                  Checking {cardsToScan.length} cards for character definitions, idiomatic accuracy & tone marks
                 </p>
               </div>
             </div>
@@ -251,7 +254,7 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
                   <div className="font-bold text-sm" style={{ color: 'var(--color-accent)' }}>
                     {scanResponse.refinedCount} / {scanResponse.scannedCount} Refined
                   </div>
-                  <div className="text-[10px] opacity-60">Nuances Enhanced</div>
+                  <div className="text-[10px] opacity-60">Nuances & Characters Enhanced</div>
                 </div>
               </div>
 
@@ -261,13 +264,16 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
                   Deck Cards Audit Results
                 </h5>
 
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {scanResponse.results.map((r) => {
                     const original = cardsToScan.find((c) => c.id === r.id);
+                    const originalChinese = original?.chinese || '';
+                    const chineseChanged = original && original.chinese !== r.chinese;
+
                     return (
                       <div
                         key={r.id}
-                        className="p-3 border text-xs space-y-1.5 transition"
+                        className="p-3 border text-xs space-y-2 transition"
                         style={{
                           backgroundColor: r.wasRefined ? 'var(--color-card-surface-bg)' : 'var(--color-sidebar-card-bg)',
                           borderColor: r.wasRefined ? 'var(--color-accent)' : 'var(--color-nav-border)',
@@ -276,6 +282,11 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2 font-serif font-bold text-sm">
+                            {chineseChanged && (
+                              <span className="line-through text-xs opacity-60 mr-1" style={{ color: 'var(--color-reader-text)' }}>
+                                {originalChinese} →
+                              </span>
+                            )}
                             <span style={{ color: 'var(--color-reader-text)' }}>{r.chinese}</span>
                             <span className="font-mono text-xs font-normal" style={{ color: 'var(--color-pinyin)' }}>
                               [{r.pinyin}]
@@ -293,15 +304,15 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
                               Nuance Refined
                             </span>
                           ) : (
-                            <span className="text-[10px] font-mono opacity-60">
-                              Verified Accurate
+                            <span className="text-[10px] font-mono text-emerald-400 opacity-90">
+                              ✓ Verified Accurate
                             </span>
                           )}
                         </div>
 
                         {/* Translation comparison */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                          {r.wasRefined && original && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-0.5">
+                          {r.wasRefined && original && original.english !== r.english && (
                             <div className="line-through text-[11px] opacity-60">
                               Was: {original.english}
                             </div>
@@ -310,6 +321,51 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
                             Gloss: <span className="font-bold" style={{ color: 'var(--color-accent)' }}>{r.english}</span>
                           </div>
                         </div>
+
+                        {/* Individual Character Definitions Breakdown */}
+                        {r.breakdown && r.breakdown.length > 0 && (
+                          <div className="pt-1.5 border-t space-y-1" style={{ borderColor: 'var(--color-nav-border)' }}>
+                            <span className="text-[10px] uppercase font-mono font-bold opacity-75">
+                              Character Definitions:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {r.breakdown.map((item, idx) => {
+                                const origChar = original?.breakdown?.find((ob) => ob.char === item.char);
+                                const origMean = origChar ? (origChar.mean || (origChar as any).meaning || '') : '';
+                                const charMeanChanged = origMean && origMean !== (item.mean || (item as any).meaning || '');
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="border px-2 py-1 text-[11px] font-mono flex items-center space-x-1.5 rounded-none"
+                                    style={{
+                                      backgroundColor: 'var(--color-reader-panel-bg)',
+                                      borderColor: charMeanChanged ? 'var(--color-accent)' : 'var(--color-nav-border)',
+                                    }}
+                                  >
+                                    <span className="font-bold text-sm" style={{ color: 'var(--color-reader-text)' }}>
+                                      {item.char}
+                                    </span>
+                                    <span style={{ color: 'var(--color-pinyin)' }}>
+                                      {item.pinyin}
+                                    </span>
+                                    <span className="opacity-50">:</span>
+                                    <span style={{ color: charMeanChanged ? 'var(--color-accent)' : 'var(--color-text-primary)' }} className={charMeanChanged ? 'font-bold' : 'opacity-90'}>
+                                      {item.mean || (item as any).meaning || ''}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Reason / Nuance note */}
+                        {r.refinementReason && r.wasRefined && (
+                          <div className="text-[11px] opacity-75 font-mono">
+                            Reason: {r.refinementReason}
+                          </div>
+                        )}
 
                         {r.grammaticalNote && (
                           <div 

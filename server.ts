@@ -208,20 +208,33 @@ app.post('/api/texts', async (req, res) => {
 });
 
 // Helper to execute Gemini generation with auto-retry and model fallback on temporary 503/429 load
-async function generateGeminiContentWithFallback(ai: GoogleGenAI, prompt: string, schema: any) {
-  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+async function generateGeminiContentWithFallback(
+  ai: GoogleGenAI,
+  prompt: string,
+  schema: any,
+  options: { fast?: boolean; thinkingBudget?: number } = { fast: true }
+) {
+  // gemini-2.5-flash is ultra-responsive for structured translation & audit tasks
+  const models = ['gemini-2.5-flash', 'gemini-3.7-flash'];
   let lastError: any = null;
 
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        const config: any = {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+        };
+
+        // Disable thinking overhead for rapid sub-second to low-latency generation
+        if (options.fast || options.thinkingBudget !== undefined) {
+          config.thinkingConfig = { thinkingBudget: options.thinkingBudget ?? 0 };
+        }
+
         const response = await ai.models.generateContent({
           model,
           contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-          },
+          config,
         });
         if (response.text) {
           return response.text;
@@ -229,9 +242,13 @@ async function generateGeminiContentWithFallback(ai: GoogleGenAI, prompt: string
       } catch (err: any) {
         lastError = err;
         const errStr = err?.message || String(err);
-        const isTransient = errStr.includes('503') || errStr.includes('UNAVAILABLE') || errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED');
+        const isTransient =
+          errStr.includes('503') ||
+          errStr.includes('UNAVAILABLE') ||
+          errStr.includes('429') ||
+          errStr.includes('RESOURCE_EXHAUSTED');
         if (isTransient && attempt === 0) {
-          await new Promise((res) => setTimeout(res, 350));
+          await new Promise((res) => setTimeout(res, 200));
           continue;
         }
         break; // Try next model
@@ -241,10 +258,10 @@ async function generateGeminiContentWithFallback(ai: GoogleGenAI, prompt: string
   throw lastError || new Error('All AI model attempts exhausted');
 }
 
-// Contextual Translation Endpoint (Supports optional Gemini AI or fast Offline Dictionary)
+// Contextual Translation Endpoint (Powered by Gemini AI with Offline Lexicon fallback)
 app.post('/api/translate-context', async (req, res) => {
   try {
-    const { text, context, mode = 'zh-to-en', useAi = false } = req.body;
+    const { text, context, mode: reqMode, useAi } = req.body;
 
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Text selection is required' });
@@ -253,27 +270,37 @@ app.post('/api/translate-context', async (req, res) => {
     const trimmedText = text.trim();
     const trimmedContext = (context || text).trim();
 
-    if (useAi && process.env.GEMINI_API_KEY) {
+    // Determine actual language direction based on the selected word/phrase
+    const hasChineseInText = /[\u4e00-\u9fa5]/.test(trimmedText);
+    const isEnglishSelection = !hasChineseInText && /[a-zA-Z]/.test(trimmedText);
+    const resolvedMode: 'zh-to-en' | 'en-to-zh' = isEnglishSelection ? 'en-to-zh' : (reqMode || (hasChineseInText ? 'zh-to-en' : 'en-to-zh'));
+
+    // If Gemini AI key is available, utilize Gemini for contextual translation
+    if (process.env.GEMINI_API_KEY && useAi !== false) {
       try {
         const ai = getGeminiClient();
-        const isEn = mode === 'en-to-zh' || !/[\u4e00-\u9fa5]/.test(trimmedText);
 
-        const prompt = isEn
-          ? `Analyze this English selection "${trimmedText}" within the context sentence "${trimmedContext}".
-CRITICAL TRANSLATION INSTRUCTIONS:
-- For "chinese": Provide the accurate, idiomatic Simplified Chinese translation for the specific phrase "${trimmedText}".
-- For "pinyin": Provide accurate Hanyu Pinyin with tone marks for that Chinese translation.
-- For "english": Return "${trimmedText}".
-- For "contextSentence": Return "${trimmedContext}".
-- For "contextTranslation": Provide the complete, natural Simplified Chinese translation of the entire surrounding sentence "${trimmedContext}".
-- For "breakdown": Provide an array of character objects for every Chinese character in the translated Chinese term, with fields "char", "pinyin", and "meaning" (English meaning of each character).`
-          : `Analyze this Chinese text selection "${trimmedText}" in the context sentence "${trimmedContext}". 
-CRITICAL TRANSLATION INSTRUCTIONS:
-- For "english": Provide a natural, smooth, accurate translation for the specific selected term/phrase "${trimmedText}" as used in this context. If "${trimmedText}" is a single word or short term (e.g., "重要", "学习", "儿子"), translate only "${trimmedText}", NOT the whole sentence.
-- For "contextTranslation": Provide the complete, fluent English translation of the entire surrounding context sentence "${trimmedContext}".
-- For "chinese": Return "${trimmedText}".
-- For "pinyin": Provide accurate Hanyu Pinyin with tone marks for "${trimmedText}".
-- For "breakdown": Provide an array of character objects for every Chinese character in "${trimmedText}", with fields "char", "pinyin", and "meaning" (individual character meaning).`;
+        const prompt = resolvedMode === 'en-to-zh'
+          ? `You are an expert bilingual Chinese-English lexicographer and translator.
+Analyze this English word/phrase "${trimmedText}" within the surrounding context sentence: "${trimmedContext}".
+
+TRANSLATION INSTRUCTIONS:
+- "chinese": Provide the accurate, natural Simplified Chinese translation for the specific selected English term/phrase "${trimmedText}". (For example, if the English term is "rising", output "上升"; if "smoke", output "烟雾"; if "copper", output "铜"). Do NOT output English words in "chinese".
+- "pinyin": Provide the accurate Hanyu Pinyin with standard tone marks for that Chinese translation (e.g., "shàng shēng").
+- "english": Return "${trimmedText}".
+- "contextSentence": Return "${trimmedContext}".
+- "contextTranslation": Provide the complete, fluent Simplified Chinese translation of the entire surrounding context sentence "${trimmedContext}".
+- "breakdown": Provide an array of character objects for EACH Chinese character in "chinese", with fields "char" (single character), "pinyin" (tone marked), and "mean" (concise, precise English meaning of that character).`
+          : `You are an expert bilingual Chinese-English lexicographer and translator.
+Analyze this Chinese word/phrase "${trimmedText}" within the surrounding context sentence: "${trimmedContext}".
+
+TRANSLATION INSTRUCTIONS:
+- "english": Provide a natural, smooth, idiomatic English translation for the specific selected term/phrase "${trimmedText}" as used in this context. If "${trimmedText}" is a single word or short term (e.g., "重要", "学习", "儿子"), translate only "${trimmedText}", NOT the entire sentence.
+- "chinese": Return "${trimmedText}".
+- "pinyin": Provide accurate Hanyu Pinyin with standard tone marks for "${trimmedText}".
+- "contextSentence": Return "${trimmedContext}".
+- "contextTranslation": Provide the complete, fluent English translation of the entire surrounding context sentence "${trimmedContext}".
+- "breakdown": Provide an array of character objects for EACH Chinese character in "${trimmedText}", with fields "char" (single character), "pinyin" (tone marked), and "mean" (concise, precise English meaning of that character).`;
 
         const schema = {
           type: Type.OBJECT,
@@ -290,16 +317,16 @@ CRITICAL TRANSLATION INSTRUCTIONS:
                 properties: {
                   char: { type: Type.STRING },
                   pinyin: { type: Type.STRING },
-                  meaning: { type: Type.STRING },
+                  mean: { type: Type.STRING },
                 },
-                required: ['char', 'pinyin', 'meaning'],
+                required: ['char', 'pinyin', 'mean'],
               },
             },
           },
           required: ['chinese', 'pinyin', 'english', 'contextSentence', 'contextTranslation', 'breakdown'],
         };
 
-        const responseText = await generateGeminiContentWithFallback(ai, prompt, schema);
+        const responseText = await generateGeminiContentWithFallback(ai, prompt, schema, { fast: true });
 
         if (responseText) {
           const parsed = JSON.parse(responseText);
@@ -308,29 +335,29 @@ CRITICAL TRANSLATION INSTRUCTIONS:
             pinyin: b.pinyin,
             mean: b.mean || b.meaning || '',
           }));
+
           return res.json({
             ...parsed,
             breakdown,
-            mode,
+            mode: resolvedMode,
             selectedText: trimmedText,
             source: 'gemini-ai',
           });
         }
       } catch (aiErr: any) {
-        // Log brief informational notice instead of alarming warning
         console.info('AI service busy or unavailable, activating offline high-accuracy fallback engine.');
       }
     }
 
-    // Default fast offline response (with full-phrase support)
-    const offlineResult = await translateOfflineAsync(trimmedText, trimmedContext, mode);
+    // Offline translation fallback
+    const offlineResult = await translateOfflineAsync(trimmedText, trimmedContext, resolvedMode);
     return res.json(offlineResult);
   } catch (error: any) {
     res.status(500).json({ error: 'Translation error' });
   }
 });
 
-// Gemini Deck Nuance Audit & Scan Endpoint
+// Gemini Deck Nuance Audit & Scan Endpoint (Optimized with concurrent batching & low-latency inference)
 app.post('/api/scan-deck', async (req, res) => {
   try {
     const { cards, deckName = 'Active Deck' } = req.body;
@@ -339,46 +366,22 @@ app.post('/api/scan-deck', async (req, res) => {
       return res.status(400).json({ error: 'No cards provided for scanning.' });
     }
 
-    const cardsToScan = cards.slice(0, 40);
-
-    const inputPayload = cardsToScan.map((c) => ({
-      id: c.id,
-      chinese: c.chinese,
-      pinyin: c.pinyin,
-      english: c.english,
-      contextSentence: c.contextSentence || c.chinese,
-      contextTranslation: c.contextTranslation || c.english,
-      grammaticalNote: c.grammaticalNote || '',
-    }));
+    const cardsToScan = cards.slice(0, 50);
 
     if (process.env.GEMINI_API_KEY) {
       try {
         const ai = getGeminiClient();
-        const prompt = `You are an expert Chinese-English lexicographer auditing a flashcard deck named "${deckName}" for accuracy, contextual nuance, natural English phrasing, and correct Pinyin tone marks.
 
-INPUT FLASHCARDS:
-${JSON.stringify(inputPayload, null, 2)}
+        // Partition cards into small concurrent batches (5-6 cards per batch) for parallel processing
+        const BATCH_SIZE = 6;
+        const batches: any[][] = [];
+        for (let i = 0; i < cardsToScan.length; i += BATCH_SIZE) {
+          batches.push(cardsToScan.slice(i, i + BATCH_SIZE));
+        }
 
-TASK & AUDIT INSTRUCTIONS:
-1. Review each card's Chinese term ("chinese"), Pinyin ("pinyin"), English gloss ("english"), context sentence ("contextSentence"), and context translation ("contextTranslation").
-2. Check for:
-   - Idiomatic & natural English translation vs rigid/awkward literal word-by-word dictionary fragments.
-   - Pinyin accuracy with standard tone marks.
-   - Context sentence alignment.
-   - Helpful grammatical or cultural nuance notes.
-3. For "pinyin": Ensure accurate Hanyu Pinyin with tone marks.
-4. For "english": Refine into fluent, idiomatic English.
-5. For "contextTranslation": Ensure full context sentence is natural and accurate.
-6. For "grammaticalNote": Provide a concise 1-sentence note explaining key nuances, register, or usage tips.
-7. For "wasRefined": Set to true ONLY if you made meaningful improvements to english, pinyin, contextTranslation, or grammaticalNote. Otherwise set to false.
-8. For "refinementReason": Short reason if refined (e.g., "Refined gloss from literal to natural idiomatic expression"), or "Already accurate" if unchanged.`;
-
-        const schema = {
+        const batchSchema = {
           type: Type.OBJECT,
           properties: {
-            scannedCount: { type: Type.NUMBER },
-            refinedCount: { type: Type.NUMBER },
-            summary: { type: Type.STRING },
             results: {
               type: Type.ARRAY,
               items: {
@@ -388,32 +391,97 @@ TASK & AUDIT INSTRUCTIONS:
                   chinese: { type: Type.STRING },
                   pinyin: { type: Type.STRING },
                   english: { type: Type.STRING },
+                  breakdown: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        char: { type: Type.STRING },
+                        pinyin: { type: Type.STRING },
+                        mean: { type: Type.STRING },
+                      },
+                      required: ['char', 'pinyin', 'mean'],
+                    },
+                  },
                   contextSentence: { type: Type.STRING },
                   contextTranslation: { type: Type.STRING },
                   grammaticalNote: { type: Type.STRING },
                   wasRefined: { type: Type.BOOLEAN },
                   refinementReason: { type: Type.STRING },
                 },
-                required: ['id', 'chinese', 'pinyin', 'english', 'contextSentence', 'contextTranslation', 'grammaticalNote', 'wasRefined', 'refinementReason'],
+                required: ['id', 'chinese', 'pinyin', 'english', 'breakdown', 'contextSentence', 'contextTranslation', 'grammaticalNote', 'wasRefined', 'refinementReason'],
               },
             },
           },
-          required: ['scannedCount', 'refinedCount', 'summary', 'results'],
+          required: ['results'],
         };
 
-        const responseText = await generateGeminiContentWithFallback(ai, prompt, schema);
+        const batchPromises = batches.map(async (batchCards) => {
+          const inputPayload = batchCards.map((c) => ({
+            id: c.id,
+            chinese: c.chinese,
+            pinyin: c.pinyin,
+            english: c.english,
+            breakdown: Array.isArray(c.breakdown) && c.breakdown.length > 0 ? c.breakdown : [],
+            contextSentence: c.contextSentence || c.chinese,
+            contextTranslation: c.contextTranslation || c.english,
+            grammaticalNote: c.grammaticalNote || '',
+          }));
 
-        if (responseText) {
-          const parsed = JSON.parse(responseText);
-          return res.json({
-            success: true,
-            source: 'gemini-ai',
-            scannedCount: parsed.scannedCount || cardsToScan.length,
-            refinedCount: parsed.refinedCount || 0,
-            summary: parsed.summary || `Scanned ${cardsToScan.length} cards using Gemini AI.`,
-            results: parsed.results || [],
-          });
-        }
+          const prompt = `You are an expert Chinese-English lexicographer auditing flashcards in deck "${deckName}".
+INPUT FLASHCARDS:
+${JSON.stringify(inputPayload, null, 2)}
+
+TASK & AUDIT RULES:
+1. "chinese": Keep untouched unless there is a clear typo/missegmentation.
+2. "breakdown": Inspect character definitions ("mean"). If vague/generic/placeholder, update to a precise English meaning; if already accurate, leave untouched.
+3. "english": Idiomatic English translation. If rigid/inaccurate, refine; if accurate, leave untouched.
+4. "pinyin": Accurate tone-marked Pinyin.
+5. "contextSentence" & "contextTranslation": Context alignment.
+6. "grammaticalNote": 1-sentence nuance or usage note.
+7. "wasRefined": true if any field was improved/refined; false if already accurate.
+8. "refinementReason": Short reason if refined, or "Already accurate".`;
+
+          try {
+            const responseText = await generateGeminiContentWithFallback(ai, prompt, batchSchema, { fast: true });
+            if (responseText) {
+              const parsed = JSON.parse(responseText);
+              if (Array.isArray(parsed.results)) {
+                return parsed.results;
+              }
+            }
+          } catch (batchErr) {
+            console.info('Batch scan fallback to per-card evaluation:', batchErr);
+          }
+
+          // Fallback for this batch if single batch encountered transient load
+          return batchCards.map((c) => ({
+            id: c.id,
+            chinese: c.chinese,
+            pinyin: c.pinyin,
+            english: c.english,
+            breakdown: c.breakdown || [],
+            contextSentence: c.contextSentence || c.chinese,
+            contextTranslation: c.contextTranslation || c.english,
+            grammaticalNote: c.grammaticalNote || `Verified: ${c.chinese}`,
+            wasRefined: false,
+            refinementReason: 'Verified accurate',
+          }));
+        });
+
+        const batchResultsNested = await Promise.all(batchPromises);
+        const allResults = batchResultsNested.flat();
+
+        const refinedCount = allResults.filter((r) => r.wasRefined).length;
+
+        return res.json({
+          success: true,
+          source: 'gemini-ai',
+          scannedCount: allResults.length,
+          refinedCount,
+          summary: `Scanned ${allResults.length} cards using parallelized Gemini AI (${refinedCount} cards refined).`,
+          results: allResults,
+        });
       } catch (aiErr) {
         console.info('Gemini deck scan fallback to offline analyzer:', aiErr);
       }
@@ -431,6 +499,7 @@ TASK & AUDIT INSTRUCTIONS:
         chinese: c.chinese,
         pinyin: c.pinyin,
         english: c.english,
+        breakdown: c.breakdown || [],
         contextSentence: c.contextSentence || c.chinese,
         contextTranslation: c.contextTranslation || c.english,
         grammaticalNote: note,

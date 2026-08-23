@@ -275,7 +275,10 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     if (!word || word.trim().length === 0) return;
 
     const trimmed = word.trim();
-    const mode = sourceLang === 'zh' ? 'zh-to-en' : 'en-to-zh';
+    // Accurately determine translation mode from the clicked word itself
+    const hasChineseInWord = /[\u4e00-\u9fa5]/.test(trimmed);
+    const isEnglishWord = !hasChineseInWord && /[a-zA-Z]/.test(trimmed);
+    const mode: 'zh-to-en' | 'en-to-zh' = isEnglishWord ? 'en-to-zh' : (hasChineseInWord ? 'zh-to-en' : (sourceLang === 'zh' ? 'zh-to-en' : 'en-to-zh'));
     const cacheKey = `${mode}:${trimmed}:${contextSentence.trim()}:${useAiTranslation ? 'ai' : 'offline'}`;
 
     if (tokenId) {
@@ -294,59 +297,37 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
     setIsLoadingTranslation(true);
 
-    if (useAiTranslation) {
-      try {
-        const res = await fetch('/api/translate-context', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: trimmed,
-            context: contextSentence,
-            mode,
-            useAi: true,
-          }),
-        });
+    try {
+      const res = await fetch('/api/translate-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: trimmed,
+          context: contextSentence,
+          mode,
+          useAi: useAiTranslation,
+        }),
+      });
 
-        if (!res.ok) throw new Error('AI Service call failed');
+      if (res.ok) {
         const data: TranslationResult = await res.json();
         clientCacheRef.current.set(cacheKey, data);
         setTranslation(data);
-      } catch (err: any) {
+      } else {
         const offlineResult = await translateOfflineAsync(trimmed, contextSentence, mode);
         clientCacheRef.current.set(cacheKey, offlineResult);
         setTranslation(offlineResult);
-      } finally {
-        setIsLoadingTranslation(false);
       }
-    } else {
+    } catch (err: any) {
       try {
-        const res = await fetch('/api/translate-context', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: trimmed,
-            context: contextSentence,
-            mode,
-            useAi: false,
-          }),
-        });
-
-        if (res.ok) {
-          const data: TranslationResult = await res.json();
-          clientCacheRef.current.set(cacheKey, data);
-          setTranslation(data);
-        } else {
-          const offlineResult = await translateOfflineAsync(trimmed, contextSentence, mode);
-          clientCacheRef.current.set(cacheKey, offlineResult);
-          setTranslation(offlineResult);
-        }
-      } catch (e) {
         const offlineResult = await translateOfflineAsync(trimmed, contextSentence, mode);
         clientCacheRef.current.set(cacheKey, offlineResult);
         setTranslation(offlineResult);
-      } finally {
-        setIsLoadingTranslation(false);
+      } catch (offErr) {
+        setTranslationError('Could not translate selected text. Please try again.');
       }
+    } finally {
+      setIsLoadingTranslation(false);
     }
   };
 
@@ -367,7 +348,8 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     if (sel && sel.length > 0) return;
 
     // Detect complete linguistic unit / multi-word phrase or compound
-    const detected = detectLinguisticUnitAtToken(inputText, token, sourceLang === 'zh');
+    const isTokenChinese = /[\u4e00-\u9fa5]/.test(token.text);
+    const detected = detectLinguisticUnitAtToken(inputText, token, isTokenChinese);
 
     // Highlight the selected phrase bounds
     setActiveTokenId(token.id);
