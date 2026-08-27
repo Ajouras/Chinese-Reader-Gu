@@ -20,15 +20,27 @@ export interface LinguisticUnitMatch {
 export const CJK_REGEX = CJK_CHAR_REGEX;
 export { CJK_PUNCT_REGEX };
 
+const THREE_WORD_PHRASAL_VERBS = [
+  'look forward to',
+  'put up with',
+  'get rid of',
+  'run out of',
+  'come up with',
+  'go along with',
+  'catch up on',
+  'keep up with',
+];
+
 /**
  * Intelligent Phrase & Linguistic Unit Detection upon Click:
  * Given a clicked token/character position in the text:
  * - Chinese: Disambiguates and extracts the multi-character word/idiom via ChineseSegmenter.
- * - English: Minimal 3-check rule:
+ * - English: Minimal priority check:
  *   1. Proper noun run: consecutive capitalized words (e.g. "Spring Autumn Cicada", "Great Wall of China")
  *   2. Hyphenated compound: (e.g. "state-of-the-art", "snow-capped")
- *   3. Phrasal verb: clicked word followed immediately by a particle (e.g. "hand over")
- *   4. Otherwise: selects only the clicked word.
+ *   3. 3-word phrasal verb exception list: (e.g. "look forward to", "run out of")
+ *   4. Phrasal verb: clicked word followed immediately by a particle (e.g. "hand over", "give up")
+ *   5. Otherwise: selects only the clicked word.
  */
 export function detectLinguisticUnitAtToken(
   fullText: string,
@@ -99,7 +111,24 @@ export function detectLinguisticUnitAtToken(
     }
   }
 
-  // 3. Phrasal verb: particle-based check (e.g., "hand over", "give up")
+  // 3. Common 3-word phrasal verb exception tier (e.g., "look forward to", "run out of", "put up with")
+  const textFromToken = fullText.slice(token.startIndex);
+  for (const phrase of THREE_WORD_PHRASAL_VERBS) {
+    const escaped = phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\s+/g, '\\s+');
+    const regex = new RegExp(`^${escaped}\\b`, 'i');
+    const m = regex.exec(textFromToken);
+    if (m) {
+      const matchEnd = token.startIndex + m[0].length;
+      return {
+        phrase: fullText.slice(token.startIndex, matchEnd),
+        startIndex: token.startIndex,
+        endIndex: matchEnd,
+        contextSentence,
+      };
+    }
+  }
+
+  // 4. Phrasal verb: particle-based check (e.g., "hand over", "give up")
   const particleMatch = detectDynamicGrammaticalPhrase(
     contextSentence,
     contextStartInFull,
@@ -111,7 +140,7 @@ export function detectLinguisticUnitAtToken(
     return particleMatch;
   }
 
-  // 4. Otherwise: select only the clicked word
+  // 5. Otherwise: select only the clicked word
   return {
     phrase: token.text,
     startIndex: token.startIndex,

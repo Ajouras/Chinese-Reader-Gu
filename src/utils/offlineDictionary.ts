@@ -897,6 +897,8 @@ export const SINGLE_CHAR_DICT: Record<string, string> = {
   买: 'buy / purchase',
   卖: 'sell',
   走: 'walk / go / leave',
+  去: 'go / leave / depart / past',
+  来: 'come / arrive',
   跑: 'run',
   跳: 'jump / leap / dance',
   飞: 'fly',
@@ -1121,11 +1123,18 @@ export function getOfflineBreakdown(text: string): CharacterBreakdown[] {
   return list;
 }
 
+export interface ChineseSegment {
+  word: string;
+  mean: string | null;
+  resolved: boolean;
+}
+
 /**
  * Perform smart word segmentation using hybrid segmentation engine and indexed offline dictionary matching.
+ * Unresolved segments are explicitly tagged with resolved: false and mean: null instead of synthetic placeholder strings.
  */
-function segmentChineseText(text: string): { word: string; mean: string }[] {
-  const result: { word: string; mean: string }[] = [];
+export function segmentChineseText(text: string): ChineseSegment[] {
+  const result: ChineseSegment[] = [];
   
   try {
     const spans = segmentChineseHybrid(text);
@@ -1137,21 +1146,40 @@ function segmentChineseText(text: string): { word: string; mean: string }[] {
         const entry = ZH_LEXICON_MAP.get(cleanW);
         if (entry) {
           const primary = entry.en.split(';')[0].split('/')[0].trim();
-          result.push({ word: cleanW, mean: primary });
+          result.push({ word: cleanW, mean: primary, resolved: true });
         } else {
-          // Check character or sub-word
-          let subMean = '';
-          for (let c of cleanW) {
-            if (SINGLE_CHAR_DICT[c]) {
-              subMean += (subMean ? ' ' : '') + SINGLE_CHAR_DICT[c].split('/')[0].trim();
+          // Check character or sub-word breakdown
+          if (cleanW.length === 1) {
+            const singleGloss = SINGLE_CHAR_DICT[cleanW];
+            if (singleGloss) {
+              const primary = singleGloss.split('/')[0].split(';')[0].trim();
+              result.push({ word: cleanW, mean: primary, resolved: true });
+            } else {
+              result.push({ word: cleanW, mean: null, resolved: false });
+            }
+          } else {
+            // Multi-character word not in ZH_LEXICON_MAP
+            let subMean = '';
+            let allCharsResolved = true;
+            for (const c of cleanW) {
+              const cGloss = SINGLE_CHAR_DICT[c] || ZH_LEXICON_MAP.get(c)?.en;
+              if (cGloss) {
+                subMean += (subMean ? ' ' : '') + cGloss.split('/')[0].split(';')[0].trim();
+              } else {
+                allCharsResolved = false;
+              }
+            }
+            if (allCharsResolved && subMean) {
+              result.push({ word: cleanW, mean: subMean, resolved: true });
+            } else {
+              result.push({ word: cleanW, mean: null, resolved: false });
             }
           }
-          result.push({ word: cleanW, mean: subMean || 'term' });
         }
       } else {
         // Punctuation or non-Chinese
         if (cleanW !== ' ' && cleanW !== '，' && cleanW !== '。' && cleanW !== '？' && cleanW !== '！') {
-          result.push({ word: cleanW, mean: cleanW });
+          result.push({ word: cleanW, mean: cleanW, resolved: true });
         }
       }
     }
@@ -1165,14 +1193,38 @@ function segmentChineseText(text: string): { word: string; mean: string }[] {
 
 /**
  * Compose a natural English phrase/sentence translation from segmented tokens.
+ * Returns null if composition fails due to insufficient dictionary coverage.
  */
-function composeEnglishTranslation(segments: { word: string; mean: string }[], originalText: string): string {
-  if (segments.length === 0) return originalText;
+export function composeEnglishTranslation(segments: ChineseSegment[], originalText: string): string | null {
+  if (segments.length === 0) return null;
 
   // Direct exact match check via O(1) index
   const exact = ZH_LEXICON_MAP.get(originalText);
   if (exact) {
     return exact.en.split(';')[0].trim();
+  }
+
+  // Count Chinese content segments vs unresolved segments
+  const chineseSegments = segments.filter((s) => /[\u4e00-\u9fa5]/.test(s.word));
+  if (chineseSegments.length === 0) {
+    return null;
+  }
+
+  const unresolvedSegments = chineseSegments.filter((s) => !s.resolved || !s.mean);
+  const unresolvedRatio = unresolvedSegments.length / chineseSegments.length;
+
+  // Threshold logic:
+  // 1. If 100% of Chinese segments are unresolved -> composition fails.
+  // 2. For short expressions (<= 3 segments), ANY unresolved segment (> 0) means the meaning is fatally compromised -> fails.
+  // 3. For longer sentences (> 3 segments), fail if more than 30% of words are unresolved (unresolvedRatio > 0.30)
+  //    or if more than 2 unresolved words exist.
+  if (
+    unresolvedSegments.length === chineseSegments.length ||
+    (chineseSegments.length <= 3 && unresolvedSegments.length > 0) ||
+    unresolvedRatio > 0.30 ||
+    unresolvedSegments.length > 2
+  ) {
+    return null;
   }
 
   if (segments.length === 1) {
@@ -1182,9 +1234,13 @@ function composeEnglishTranslation(segments: { word: string; mean: string }[], o
   const ignoreInPhrase = ['particle', 'possessive or modifying particle', 'continuous state particle', 'modal suggestion particle', 'modal question particle', 'question particle', 'modal exclamation particle'];
 
   const words = segments
-    .filter((s) => !ignoreInPhrase.includes(s.mean))
-    .map((s) => s.mean)
+    .filter((s) => s.mean && !ignoreInPhrase.includes(s.mean))
+    .map((s) => s.mean!)
     .filter(Boolean);
+
+  if (words.length === 0) {
+    return null;
+  }
 
   let sentence = words.join(' ');
 
@@ -1317,7 +1373,8 @@ export function translateOffline(
         const composed = composeEnglishTranslation(segments, cleanText);
         if (composed && composed !== cleanText) {
           englishMeaning = composed;
-          grammaticalNote = `Segmented phrase: ${segments.map((s) => `${s.word} (${s.mean})`).join(' + ')}`;
+          const resolvedSegments = segments.filter((s) => s.mean);
+          grammaticalNote = `Segmented phrase: ${resolvedSegments.map((s) => `${s.word} (${s.mean})`).join(' + ')}`;
         }
       }
     }

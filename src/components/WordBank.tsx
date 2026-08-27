@@ -27,6 +27,8 @@ interface WordBankProps {
   bankStatus: BankStatus;
   onDeleteCard: (cardId: string) => void;
   onCreateDeck: (name: string, description: string) => void;
+  onRenameDeck?: (deckId: string, newName: string, newDescription?: string) => void;
+  onDeleteDeck?: (deckId: string) => void;
   onRestoreBackup: () => Promise<void>;
   onExportCards: (format: 'json' | 'csv') => void;
   onImportCards: (jsonOrCsv: string) => void;
@@ -39,6 +41,8 @@ export const WordBank: React.FC<WordBankProps> = ({
   bankStatus,
   onDeleteCard,
   onCreateDeck,
+  onRenameDeck,
+  onDeleteDeck,
   onRestoreBackup,
   onExportCards,
   onImportCards,
@@ -49,6 +53,10 @@ export const WordBank: React.FC<WordBankProps> = ({
   const [newDeckName, setNewDeckName] = useState<string>('');
   const [newDeckDesc, setNewDeckDesc] = useState<string>('');
   const [isCreatingDeck, setIsCreatingDeck] = useState<boolean>(false);
+  const [isManagingDecks, setIsManagingDecks] = useState<boolean>(false);
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
+  const [editDeckName, setEditDeckName] = useState<string>('');
+  const [editDeckDesc, setEditDeckDesc] = useState<string>('');
   const [isRestoring, setIsRestoring] = useState<boolean>(false);
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
 
@@ -72,6 +80,40 @@ export const WordBank: React.FC<WordBankProps> = ({
     setNewDeckName('');
     setNewDeckDesc('');
     setIsCreatingDeck(false);
+  };
+
+  const startEditingDeck = (deck: Deck) => {
+    setEditingDeckId(deck.id);
+    setEditDeckName(deck.name);
+    setEditDeckDesc(deck.description || '');
+  };
+
+  const handleSaveDeckRename = (deckId: string) => {
+    if (!editDeckName.trim()) return;
+    if (onRenameDeck) {
+      onRenameDeck(deckId, editDeckName.trim(), editDeckDesc.trim());
+    }
+    setEditingDeckId(null);
+  };
+
+  const handleDeleteDeckClick = (deck: Deck) => {
+    if (deck.id === 'main') {
+      alert('Cannot delete the default Main Deck.');
+      return;
+    }
+    const deckCardsCount = cards.filter((c) => c.deckId === deck.id).length;
+    const confirmMsg = deckCardsCount > 0
+      ? `Delete deck "${deck.name}"? All ${deckCardsCount} cards in this deck will be safely moved to the Main Deck.`
+      : `Delete deck "${deck.name}"?`;
+    
+    if (window.confirm(confirmMsg)) {
+      if (onDeleteDeck) {
+        onDeleteDeck(deck.id);
+      }
+      if (selectedDeckFilter === deck.id) {
+        setSelectedDeckFilter('all');
+      }
+    }
   };
 
   const handleRestoreClick = async () => {
@@ -288,7 +330,25 @@ export const WordBank: React.FC<WordBankProps> = ({
               </button>
             )}
             <button
-              onClick={() => setIsCreatingDeck(!isCreatingDeck)}
+              onClick={() => {
+                setIsManagingDecks(!isManagingDecks);
+                if (isCreatingDeck) setIsCreatingDeck(false);
+              }}
+              className="px-3 py-2 font-bold flex items-center space-x-1.5 transition border shadow-sm"
+              style={{
+                backgroundColor: isManagingDecks ? 'var(--color-accent)' : 'var(--color-sidebar-card-bg)',
+                borderColor: isManagingDecks ? 'var(--color-accent)' : 'var(--color-nav-border)',
+                color: isManagingDecks ? 'var(--color-accent-text)' : 'var(--color-text-primary)'
+              }}
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>{isManagingDecks ? 'Done Managing' : 'Manage Decks'}</span>
+            </button>
+            <button
+              onClick={() => {
+                setIsCreatingDeck(!isCreatingDeck);
+                if (isManagingDecks) setIsManagingDecks(false);
+              }}
               className="px-3 py-2 font-bold flex items-center space-x-1.5 transition shadow-sm"
               style={{
                 backgroundColor: 'var(--color-accent)',
@@ -300,6 +360,145 @@ export const WordBank: React.FC<WordBankProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Deck Management Panel (Rename & Delete) */}
+        {isManagingDecks && (
+          <div
+            className="border rounded-none p-4 space-y-3 text-xs font-sans"
+            style={{
+              backgroundColor: 'var(--color-sidebar-card-bg)',
+              borderColor: 'var(--color-nav-border)',
+              color: 'var(--color-text-primary)'
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-sm">Manage Flashcard Decks</h4>
+              <span className="text-[11px] opacity-75">
+                Deleting a deck safely reassigns its cards to the default Main Deck.
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {decks.map((d) => {
+                const isEditing = editingDeckId === d.id;
+                const isMain = d.id === 'main';
+                const cardCount = cards.filter((c) => c.deckId === d.id).length;
+
+                return (
+                  <div
+                    key={d.id}
+                    className="border p-3 flex flex-wrap items-center justify-between gap-3"
+                    style={{
+                      backgroundColor: 'var(--color-reader-panel-bg)',
+                      borderColor: 'var(--color-nav-border)',
+                    }}
+                  >
+                    {isEditing ? (
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={editDeckName}
+                          onChange={(e) => setEditDeckName(e.target.value)}
+                          placeholder="Deck Name"
+                          className="border p-1.5 font-medium focus:outline-none"
+                          style={{
+                            backgroundColor: 'var(--color-sidebar-card-bg)',
+                            borderColor: 'var(--color-nav-border)',
+                            color: 'var(--color-text-primary)',
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={editDeckDesc}
+                          onChange={(e) => setEditDeckDesc(e.target.value)}
+                          placeholder="Optional Description"
+                          className="border p-1.5 font-medium focus:outline-none"
+                          style={{
+                            backgroundColor: 'var(--color-sidebar-card-bg)',
+                            borderColor: 'var(--color-nav-border)',
+                            color: 'var(--color-text-primary)',
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                            {d.name}
+                          </span>
+                          {isMain && (
+                            <span className="text-[10px] px-1.5 py-0.5 border border-emerald-500/40 text-emerald-400 font-semibold">
+                              Default Deck
+                            </span>
+                          )}
+                          <span className="text-[11px] opacity-75">
+                            ({cardCount} {cardCount === 1 ? 'card' : 'cards'})
+                          </span>
+                        </div>
+                        {d.description && (
+                          <p className="text-[11px] opacity-70 mt-0.5">{d.description}</p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center space-x-2">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveDeckRename(d.id)}
+                            className="px-3 py-1 font-bold text-xs shadow-sm flex items-center space-x-1"
+                            style={{
+                              backgroundColor: 'var(--color-accent)',
+                              color: 'var(--color-accent-text)',
+                            }}
+                          >
+                            <Check className="w-3.5 h-3.5 inline" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            onClick={() => setEditingDeckId(null)}
+                            className="px-2.5 py-1 border font-medium text-xs opacity-80 hover:opacity-100"
+                            style={{
+                              borderColor: 'var(--color-nav-border)',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startEditingDeck(d)}
+                            className="px-2.5 py-1 border font-semibold text-xs flex items-center space-x-1 transition hover:opacity-90"
+                            style={{
+                              backgroundColor: 'var(--color-sidebar-card-bg)',
+                              borderColor: 'var(--color-nav-border)',
+                              color: 'var(--color-text-primary)',
+                            }}
+                            title="Rename Deck"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 inline" />
+                            <span>Rename</span>
+                          </button>
+                          {!isMain && (
+                            <button
+                              onClick={() => handleDeleteDeckClick(d)}
+                              className="px-2.5 py-1 border border-rose-500/40 text-rose-400 hover:text-rose-300 font-semibold text-xs flex items-center space-x-1 transition hover:bg-rose-500/10"
+                              title="Delete Deck (Reassign cards to Main)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 inline" />
+                              <span>Delete</span>
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* New Deck Creation Form */}
         {isCreatingDeck && (

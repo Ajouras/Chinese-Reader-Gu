@@ -1,19 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Check, RefreshCw, AlertCircle, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Flashcard, Deck, CharacterBreakdown } from '../types';
-
-interface ScannedCardResult {
-  id: string;
-  chinese: string;
-  pinyin: string;
-  english: string;
-  breakdown?: CharacterBreakdown[];
-  contextSentence: string;
-  contextTranslation: string;
-  grammaticalNote: string;
-  wasRefined: boolean;
-  refinementReason: string;
-}
+import { mergeScannedDeckResults, ScannedCardResult } from '../utils/deckScanMerge';
 
 interface DeckScanModalProps {
   isOpen: boolean;
@@ -76,26 +64,7 @@ export const DeckScanModal: React.FC<DeckScanModalProps> = ({
   const handleApplyRefinements = () => {
     if (!scanResponse || !scanResponse.results) return;
 
-    const map = new Map<string, ScannedCardResult>(
-      scanResponse.results.map((r) => [r.id, r])
-    );
-
-    const updated = cardsToScan.map((original) => {
-      const scanned = map.get(original.id);
-      if (scanned) {
-        return {
-          ...original,
-          chinese: scanned.chinese || original.chinese,
-          pinyin: scanned.pinyin || original.pinyin,
-          english: scanned.english || original.english,
-          breakdown: scanned.breakdown && scanned.breakdown.length > 0 ? scanned.breakdown : original.breakdown,
-          contextSentence: scanned.contextSentence || original.contextSentence,
-          contextTranslation: scanned.contextTranslation || original.contextTranslation,
-          grammaticalNote: scanned.grammaticalNote || original.grammaticalNote,
-        };
-      }
-      return original;
-    });
+    const updated = mergeScannedDeckResults(cardsToScan, scanResponse.results);
 
     onBatchUpdateCards(updated);
     setApplied(true);

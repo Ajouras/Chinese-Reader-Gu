@@ -18,6 +18,66 @@ app.use(express.json({ limit: '10mb' }));
 const DATA_DIR = path.join(process.cwd(), 'data');
 const BANK_FILE = path.join(DATA_DIR, 'flashcards.json');
 const BACKUP_FILE = path.join(DATA_DIR, 'flashcards.json.bak');
+const DECKS_FILE = path.join(DATA_DIR, 'decks.json');
+const DECKS_BACKUP_FILE = path.join(DATA_DIR, 'decks.json.bak');
+
+const DEFAULT_DECKS = [
+  {
+    id: 'main',
+    name: 'Main Deck',
+    description: 'Default card deck',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'news',
+    name: 'News & Media',
+    description: 'Vocabulary from news articles',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'hsk',
+    name: 'HSK Prep',
+    description: 'Standard Chinese proficiency test words',
+    createdAt: new Date().toISOString(),
+  },
+];
+
+async function loadDecksData(): Promise<any[]> {
+  try {
+    if (existsSync(DECKS_FILE)) {
+      const raw = await fs.readFile(DECKS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading decks.json:', err);
+  }
+
+  // Check backup
+  try {
+    if (existsSync(DECKS_BACKUP_FILE)) {
+      const raw = await fs.readFile(DECKS_BACKUP_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        await fs.writeFile(DECKS_FILE, raw, 'utf-8');
+        return parsed;
+      }
+    }
+  } catch (bErr) {
+    console.error('Error reading decks.json.bak:', bErr);
+  }
+
+  // Seed default decks
+  try {
+    const jsonString = JSON.stringify(DEFAULT_DECKS, null, 2);
+    await fs.writeFile(DECKS_FILE, jsonString, 'utf-8');
+    await fs.writeFile(DECKS_BACKUP_FILE, jsonString, 'utf-8');
+  } catch (_) {}
+
+  return DEFAULT_DECKS;
+}
 
 const TEXTS_DIR = path.join(process.cwd(), 'texts');
 
@@ -566,6 +626,57 @@ app.post('/api/bank/restore', async (req, res) => {
     res.json({ success: true, cardCount: parsed.length, cards: parsed });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to restore backup', details: error.message });
+  }
+});
+
+// GET DECKS
+app.get('/api/decks', async (req, res) => {
+  try {
+    const decks = await loadDecksData();
+    res.json({ decks });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to load decks', details: error.message });
+  }
+});
+
+// SAVE DECKS (with automatic atomic backup)
+app.post('/api/decks', async (req, res) => {
+  try {
+    const { decks } = req.body;
+    if (!Array.isArray(decks)) {
+      return res.status(400).json({ error: 'Expected "decks" array' });
+    }
+
+    const jsonString = JSON.stringify(decks, null, 2);
+
+    // 1. Create/update backup file first if main decks file exists
+    if (existsSync(DECKS_FILE)) {
+      try {
+        const currentData = await fs.readFile(DECKS_FILE, 'utf-8');
+        await fs.writeFile(DECKS_BACKUP_FILE, currentData, 'utf-8');
+      } catch (bErr) {
+        console.warn('Could not update decks backup file:', bErr);
+      }
+    } else {
+      await fs.writeFile(DECKS_BACKUP_FILE, jsonString, 'utf-8');
+    }
+
+    // 2. Write main decks file
+    await fs.writeFile(DECKS_FILE, jsonString, 'utf-8');
+
+    const stat = await fs.stat(DECKS_FILE);
+    const bstat = existsSync(DECKS_BACKUP_FILE) ? await fs.stat(DECKS_BACKUP_FILE) : null;
+
+    res.json({
+      success: true,
+      deckCount: decks.length,
+      decks,
+      lastSaved: stat.mtime.toISOString(),
+      backupTime: bstat ? bstat.mtime.toISOString() : null,
+      hasBackup: true,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to save decks', details: error.message });
   }
 });
 

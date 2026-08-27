@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Flashcard, Deck, CardDisplayConfig, DisplayField } from '../types';
 import { speakText } from '../utils/textParser';
+import { calculateNextReview, getPreviewInterval } from '../utils/srsAlgorithm';
 import { DeckScanModal } from './DeckScanModal';
 
 interface FlashcardReviewProps {
@@ -79,52 +80,23 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({
   const handleGrade = (quality: 'again' | 'hard' | 'good' | 'easy') => {
     if (!currentCard) return;
 
-    let { interval, easeFactor, repetitions } = currentCard;
-
-    // Anki SM-2 score mapping: again = 1, hard = 2, good = 4, easy = 5
-    let score = 4;
-    if (quality === 'again') score = 1;
-    if (quality === 'hard') score = 2;
-    if (quality === 'good') score = 4;
-    if (quality === 'easy') score = 5;
-
-    if (score < 3) {
-      repetitions = 0;
-      interval = 1; // repeat tomorrow or later today
-    } else {
-      if (repetitions === 0) {
-        interval = 1;
-      } else if (repetitions === 1) {
-        interval = 6;
-      } else {
-        interval = Math.round(interval * easeFactor);
-      }
-      repetitions += 1;
-    }
-
-    // Adjust ease factor
-    easeFactor = easeFactor + (0.1 - (5 - score) * (0.08 + (5 - score) * 0.02));
-    if (easeFactor < 1.3) easeFactor = 1.3;
-
-    // Calculate due date
-    const nextDueDate = new Date();
-    nextDueDate.setDate(nextDueDate.getDate() + interval);
+    const grading = calculateNextReview(currentCard, quality);
 
     const updated: Flashcard = {
       ...currentCard,
-      interval,
-      easeFactor,
-      repetitions,
-      dueDate: nextDueDate.toISOString(),
+      interval: grading.interval,
+      easeFactor: grading.easeFactor,
+      repetitions: grading.repetitions,
+      dueDate: grading.dueDate,
       lastReviewed: new Date().toISOString(),
-      state: repetitions >= 4 ? 'mastered' : 'review',
+      state: grading.state,
     };
 
     onUpdateCard(updated);
 
     // Track session stats
     setSessionReviewedCount((prev) => prev + 1);
-    if (score >= 3) setSessionCorrectCount((prev) => prev + 1);
+    if (quality !== 'again') setSessionCorrectCount((prev) => prev + 1);
 
     // Advance to next card
     setIsFlipped(false);
@@ -580,7 +552,7 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({
                   color: '#fb7185',
                 }}
               >
-                <span className="text-sm">Again (1m)</span>
+                <span className="text-sm">Again ({getPreviewInterval(currentCard, 'again')}d)</span>
                 <span className="text-[10px] opacity-70 font-normal">Forgot</span>
               </button>
 
@@ -593,7 +565,7 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({
                   color: '#f59e0b',
                 }}
               >
-                <span className="text-sm">Hard ({Math.max(1, Math.round(currentCard.interval * 1.2))}d)</span>
+                <span className="text-sm">Hard ({getPreviewInterval(currentCard, 'hard')}d)</span>
                 <span className="text-[10px] opacity-70 font-normal">Difficult</span>
               </button>
 
@@ -606,7 +578,7 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({
                   color: '#10b981',
                 }}
               >
-                <span className="text-sm">Good ({Math.max(1, Math.round(currentCard.interval * 2.5))}d)</span>
+                <span className="text-sm">Good ({getPreviewInterval(currentCard, 'good')}d)</span>
                 <span className="text-[10px] opacity-70 font-normal">Normal</span>
               </button>
 
@@ -619,7 +591,7 @@ export const FlashcardReview: React.FC<FlashcardReviewProps> = ({
                   color: '#38bdf8',
                 }}
               >
-                <span className="text-sm">Easy ({Math.max(2, Math.round(currentCard.interval * 3.5))}d)</span>
+                <span className="text-sm">Easy ({getPreviewInterval(currentCard, 'easy')}d)</span>
                 <span className="text-[10px] opacity-70 font-normal">Instant</span>
               </button>
             </div>

@@ -67,19 +67,30 @@ export default function App() {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Load cards from server on boot
+  // Load cards and decks from server on boot
   const loadBank = async () => {
     try {
-      const res = await fetch('/api/bank');
-      if (res.ok) {
-        const data = await res.json();
+      const [bankRes, decksRes] = await Promise.all([
+        fetch('/api/bank'),
+        fetch('/api/decks')
+      ]);
+
+      if (bankRes.ok) {
+        const data = await bankRes.json();
         setCards(data.cards || []);
         if (data.status) {
           setBankStatus(data.status);
         }
       }
+
+      if (decksRes.ok) {
+        const decksData = await decksRes.json();
+        if (Array.isArray(decksData.decks) && decksData.decks.length > 0) {
+          setDecks(decksData.decks);
+        }
+      }
     } catch (err) {
-      console.error('Error fetching bank:', err);
+      console.error('Error fetching bank/decks:', err);
     } finally {
       setIsLoading(false);
     }
@@ -88,6 +99,20 @@ export default function App() {
   useEffect(() => {
     loadBank();
   }, []);
+
+  // Save updated decks array to backend file
+  const saveDecksToServer = async (updatedDecks: Deck[]) => {
+    setDecks(updatedDecks);
+    try {
+      await fetch('/api/decks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decks: updatedDecks }),
+      });
+    } catch (err) {
+      console.error('Failed to persist decks:', err);
+    }
+  };
 
   // Save updated cards array to backend file
   const saveCardsToServer = async (updatedCards: Flashcard[]) => {
@@ -152,14 +177,41 @@ export default function App() {
   };
 
   // Create new Deck
-  const handleCreateDeck = (name: string, description: string) => {
+  const handleCreateDeck = async (name: string, description: string) => {
     const newDeck: Deck = {
       id: `deck-${Date.now()}`,
       name,
       description,
       createdAt: new Date().toISOString(),
     };
-    setDecks([...decks, newDeck]);
+    const updated = [...decks, newDeck];
+    await saveDecksToServer(updated);
+  };
+
+  // Rename existing Deck
+  const handleRenameDeck = async (deckId: string, newName: string, newDescription?: string) => {
+    const updated = decks.map((d) =>
+      d.id === deckId
+        ? { ...d, name: newName, description: newDescription !== undefined ? newDescription : d.description }
+        : d
+    );
+    await saveDecksToServer(updated);
+  };
+
+  // Delete Deck with referential safety (reassign cards to 'main' default deck)
+  const handleDeleteDeck = async (deckId: string) => {
+    if (deckId === 'main') {
+      alert('Cannot delete the default Main Deck.');
+      return;
+    }
+
+    const updatedDecks = decks.filter((d) => d.id !== deckId);
+    const updatedCards = cards.map((c) => (c.deckId === deckId ? { ...c, deckId: 'main' } : c));
+
+    await Promise.all([
+      saveDecksToServer(updatedDecks),
+      saveCardsToServer(updatedCards),
+    ]);
   };
 
   // Restore bank from corrupt-resistant backup
@@ -271,6 +323,8 @@ export default function App() {
             bankStatus={bankStatus}
             onDeleteCard={handleDeleteCard}
             onCreateDeck={handleCreateDeck}
+            onRenameDeck={handleRenameDeck}
+            onDeleteDeck={handleDeleteDeck}
             onRestoreBackup={handleRestoreBackup}
             onExportCards={handleExportCards}
             onImportCards={handleImportCards}

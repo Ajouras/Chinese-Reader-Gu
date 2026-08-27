@@ -206,7 +206,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
       const shortcutKey = (saveCardShortcut || 's').toLowerCase().trim();
       if (shortcutKey && e.key.toLowerCase() === shortcutKey) {
-        if (translation && (translation.chinese || translation.english)) {
+        if (translation && translation.status !== 'not_found' && (translation.chinese || translation.english)) {
           e.preventDefault();
           handleSaveWord();
         }
@@ -479,7 +479,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
   // Save active translation to bank
   const handleSaveWord = async () => {
-    if (!translation) return;
+    if (!translation || translation.status === 'not_found') return;
 
     const success = await onSaveToBank({
       chinese: translation.chinese,
