@@ -4,9 +4,9 @@ A high-contrast, responsive Chinese-English contextual reader featuring an integ
 
 ---
 
-> ### Vibecode Warning
+> ### AI Collaboration Notice
 >
-> This codebase was generated and refined in collaboration with AI systems through iterative, vibe-driven prompt engineering. While fully typed in TypeScript and backed by automated regression and integration test suites, components and utilities reflect a prompt-driven development workflow. Review, test, and adapt the code as appropriate before utilizing it in mission-critical production environments.
+> This codebase was developed in collaboration with AI coding assistants. While fully typed in TypeScript and backed by automated regression and integration test suites, users should review, test, and adapt the code as appropriate for their specific production or deployment requirements.
 
 ---
 
