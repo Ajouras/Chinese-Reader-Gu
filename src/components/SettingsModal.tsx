@@ -18,8 +18,8 @@ import { AppThemePreset, CustomThemeConfig, SectionColors } from '../types';
 import { THEME_PRESETS, DEFAULT_THEME } from '../utils/themeManager';
 
 interface SettingsModalProps {
-  useAiTranslation: boolean;
-  setUseAiTranslation: (val: boolean) => void;
+  useAiTranslation?: boolean;
+  setUseAiTranslation?: (val: boolean) => void;
   saveCardShortcut: string;
   setSaveCardShortcut: (val: string) => void;
   themeConfig: CustomThemeConfig;
@@ -27,8 +27,6 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
-  useAiTranslation,
-  setUseAiTranslation,
   saveCardShortcut,
   setSaveCardShortcut,
   themeConfig,
@@ -565,8 +563,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       >
         <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: colors.navBorder }}>
           <div className="flex items-center space-x-2 font-bold" style={{ color: colors.accentColor }}>
-            <FlaskConical className="w-4 h-4" />
-            <span>Experimental Features & Engine Architecture</span>
+            <Sparkles className="w-4 h-4" />
+            <span>Translation Engine Architecture</span>
           </div>
           <span 
             className="text-[10px] px-2.5 py-1 rounded-none border font-bold tracking-wider uppercase"
@@ -576,7 +574,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               borderColor: `${colors.accentColor}44`,
             }}
           >
-            {useAiTranslation ? 'Experimental AI Cloud Engine' : 'Default 100% Offline Engine'}
+            Unified Fast Neural Pipeline
           </span>
         </div>
 
@@ -585,37 +583,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             className="p-3 border space-y-3"
             style={{ backgroundColor: colors.sidebarCardBg, borderColor: colors.navBorder }}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4" style={{ color: colors.accentColor }} />
-                <span className="font-bold">Google Gemini AI Context Engine</span>
-              </div>
-              <label className="flex items-center space-x-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={useAiTranslation}
-                  onChange={(e) => setUseAiTranslation(e.target.checked)}
-                  className="w-4 h-4 rounded-none cursor-pointer"
-                  style={{ accentColor: colors.accentColor }}
-                />
-                <span className="font-bold text-xs" style={{ color: colors.accentColor }}>
-                  {useAiTranslation ? 'Enabled (Requires Internet)' : 'Disabled (Default Offline)'}
-                </span>
-              </label>
-            </div>
-
-            {/* Architecture Explanation */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t text-[11px]" style={{ borderColor: colors.navBorder }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
               <div 
                 className="p-2.5 border space-y-1"
                 style={{ backgroundColor: colors.readerPanelBg, borderColor: colors.navBorder }}
               >
-                <div className="flex items-center space-x-1.5 text-emerald-400 font-bold">
-                  <WifiOff className="w-3.5 h-3.5" />
-                  <span>Default Engine: 100% Zero-API Local</span>
+                <div className="flex items-center space-x-1.5 font-bold" style={{ color: colors.accentColor }}>
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Primary: Google GTX Neural Translation</span>
                 </div>
                 <p className="leading-relaxed opacity-80">
-                  The primary dictionary engine uses the built-in CC-CEDICT database and client-side Pinyin Pro. It runs completely in your browser memory with <strong>0ms latency</strong>, works without internet, and requires <strong>zero API calls or keys</strong>.
+                  Sends selected phrases and full sentence contexts in parallel directly to the high-speed Google GTX neural endpoint with a <strong>1.5s timeout</strong>. Provides instant, sentence-tuned translation with zero API key requirement.
                 </p>
               </div>
 
@@ -623,12 +601,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="p-2.5 border space-y-1"
                 style={{ backgroundColor: colors.readerPanelBg, borderColor: colors.navBorder }}
               >
-                <div className="flex items-center space-x-1.5 font-bold" style={{ color: colors.accentColor }}>
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>Experimental AI: Cloud Context Model</span>
+                <div className="flex items-center space-x-1.5 text-emerald-400 font-bold">
+                  <WifiOff className="w-3.5 h-3.5" />
+                  <span>Fallback: CC-CEDICT Lexicon</span>
                 </div>
                 <p className="leading-relaxed opacity-80">
-                  When enabled, context lookups are enhanced by Google Gemini 3.6 Flash. This calls the secure server-side Gemini AI endpoint to provide deep nuance analysis for complex slang, chengyu, and colloquial sentences.
+                  If offline or if the network request times out, the engine seamlessly falls back to the local CC-CEDICT lexicon and single-character dictionary for reliable word glosses and tone breakdowns.
                 </p>
               </div>
             </div>

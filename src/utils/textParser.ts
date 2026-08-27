@@ -3,24 +3,32 @@
  */
 
 import { tokenizeLexicalText, LexicalToken, WordSpan, CJK_CHAR_REGEX, CJK_PUNCT_REGEX, detectChineseLexicalUnit } from './chineseSegmenter';
-import { EXTENDED_ENGLISH_PHRASES } from './englishPhrases';
 import { detectDynamicGrammaticalPhrase } from './dynamicGrammarMatcher';
 
 export interface TextToken extends LexicalToken {
   pinyinApprox?: string;
 }
 
+export interface LinguisticUnitMatch {
+  phrase: string;
+  startIndex: number;
+  endIndex: number;
+  contextSentence: string;
+}
+
 // Regex exports for backwards compatibility
 export const CJK_REGEX = CJK_CHAR_REGEX;
 export { CJK_PUNCT_REGEX };
 
-const COMMON_ENGLISH_PHRASES = EXTENDED_ENGLISH_PHRASES;
-
 /**
  * Intelligent Phrase & Linguistic Unit Detection upon Click:
  * Given a clicked token/character position in the text:
- * - Chinese: Disambiguates and extracts the multi-character word/idiom (e.g. "解决", "解决掉", "塞翁失马", "令人叹为观止").
- * - English: Identifies multi-word phrases, proper nouns (e.g. "Great Wall of China", "city center", "take care of") or standard lexical words.
+ * - Chinese: Disambiguates and extracts the multi-character word/idiom via ChineseSegmenter.
+ * - English: Minimal 3-check rule:
+ *   1. Proper noun run: consecutive capitalized words (e.g. "Spring Autumn Cicada", "Great Wall of China")
+ *   2. Hyphenated compound: (e.g. "state-of-the-art", "snow-capped")
+ *   3. Phrasal verb: clicked word followed immediately by a particle (e.g. "hand over")
+ *   4. Otherwise: selects only the clicked word.
  */
 export function detectLinguisticUnitAtToken(
   fullText: string,
@@ -52,40 +60,10 @@ export function detectLinguisticUnitAtToken(
     };
   }
 
-  // English: Check if clicked token is part of a multi-word phrase, proper noun, or phrasal verb
-  const lowerContext = contextSentence.toLowerCase();
-  const tokenWord = token.text.toLowerCase().trim();
+  // English: Minimal 3-rule check
   const contextStartInFull = fullText.indexOf(contextSentence);
 
-  // 1. Sort phrases by length descending to match longest phrase first
-  const sortedPhrases = [...COMMON_ENGLISH_PHRASES].sort((a, b) => b.length - a.length);
-
-  for (const phrase of sortedPhrases) {
-    const phraseWords = phrase.split(/\s+/);
-    if (phraseWords.includes(tokenWord)) {
-      // Find phrase position in context
-      const regex = new RegExp(`\\b${phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
-      const match = regex.exec(contextSentence);
-      if (match && typeof match.index === 'number') {
-        const matchIdxInContext = match.index;
-        const phraseLen = match[0].length;
-        const actualStart = (contextStartInFull >= 0 ? contextStartInFull : 0) + matchIdxInContext;
-        const actualEnd = actualStart + phraseLen;
-
-        // Verify token falls inside this span
-        if (token.startIndex >= actualStart - 1 && token.endIndex <= actualEnd + 1) {
-          return {
-            phrase: fullText.slice(actualStart, actualEnd),
-            startIndex: actualStart,
-            endIndex: actualEnd,
-            contextSentence,
-          };
-        }
-      }
-    }
-  }
-
-  // 2. Capitalized Proper Noun sequence detection (e.g. "Great Wall of China", "Palace Museum")
+  // 1. Proper noun run: consecutive capitalized words (e.g. "Spring Autumn Cicada", "Great Wall of China")
   if (/^[A-Z]/.test(token.text.trim()) && contextStartInFull >= 0) {
     const properNounRegex = /\b([A-Z][a-zA-Z]*(?:\s+(?:of|the|and|in|on|at|for|de|la)\s+[A-Z][a-zA-Z]*|\s+[A-Z][a-zA-Z]*)+)\b/g;
     let pMatch: RegExpExecArray | null;
@@ -103,9 +81,9 @@ export function detectLinguisticUnitAtToken(
     }
   }
 
-  // 3. Hyphenated compound word detection (e.g., "snow-capped", "cross-platform", "cutting-edge", "state-of-the-art")
+  // 2. Hyphenated compound (e.g., "snow-capped", "cutting-edge", "state-of-the-art")
   if (contextStartInFull >= 0) {
-    const hyphenRegex = /\b([a-zA-Z]+(?:-[a-zA-Z]+)+)\b/g;
+    const hyphenRegex = /\b([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)+)\b/g;
     let hMatch: RegExpExecArray | null;
     while ((hMatch = hyphenRegex.exec(contextSentence)) !== null) {
       const matchStart = contextStartInFull + hMatch.index;
@@ -121,19 +99,19 @@ export function detectLinguisticUnitAtToken(
     }
   }
 
-  // 4. Dynamic Grammatical Phrase Detection for arbitrary outside text
-  // Captures adjective + noun chains, compound nouns, prepositional links (e.g., "sense of awe", "timeless chapter of history")
-  const dynamicMatch = detectDynamicGrammaticalPhrase(
+  // 3. Phrasal verb: particle-based check (e.g., "hand over", "give up")
+  const particleMatch = detectDynamicGrammaticalPhrase(
     contextSentence,
     contextStartInFull,
     token.startIndex,
     token.endIndex,
     fullText
   );
-  if (dynamicMatch) {
-    return dynamicMatch;
+  if (particleMatch) {
+    return particleMatch;
   }
 
+  // 4. Otherwise: select only the clicked word
   return {
     phrase: token.text,
     startIndex: token.startIndex,

@@ -1055,39 +1055,42 @@ for (const entry of OFFLINE_LEXICON) {
   }
 }
 
-// In-memory LRU / caches for high-speed offline parsing
-const PINYIN_CACHE = new Map<string, string>();
-const BREAKDOWN_CACHE = new Map<string, CharacterBreakdown[]>();
-const OFFLINE_TRANSLATION_MEM_CACHE = new Map<string, TranslationResult>();
-const ASYNC_PHRASE_CACHE = new Map<string, string>();
+// Single unified LRU-bounded Translation Cache
+const MAX_CACHE_SIZE = 1000;
+const TRANSLATION_CACHE = new Map<string, TranslationResult>();
+
+function getCachedTranslation(key: string): TranslationResult | undefined {
+  return TRANSLATION_CACHE.get(key);
+}
+
+function setCachedTranslation(key: string, result: TranslationResult): void {
+  if (TRANSLATION_CACHE.size >= MAX_CACHE_SIZE) {
+    const oldestKey = TRANSLATION_CACHE.keys().next().value;
+    if (oldestKey) {
+      TRANSLATION_CACHE.delete(oldestKey);
+    }
+  }
+  TRANSLATION_CACHE.set(key, result);
+}
 
 /**
- * Generate accurate Hanyu Pinyin with tone marks using pinyin-pro library with instant caching.
+ * Generate accurate Hanyu Pinyin with tone marks using pinyin-pro library.
  * Strictly checks that text contains Chinese characters to prevent outputting spaced roman letters.
  */
 export function getOfflinePinyin(text: string): string {
   if (!text || !/[\u4e00-\u9fa5]/.test(text)) return '';
-  const cached = PINYIN_CACHE.get(text);
-  if (cached !== undefined) return cached;
-
   try {
-    const result = pinyin(text, { toneType: 'symbol', type: 'string' });
-    if (PINYIN_CACHE.size < 2000) {
-      PINYIN_CACHE.set(text, result);
-    }
-    return result;
+    return pinyin(text, { toneType: 'symbol', type: 'string' });
   } catch (e) {
     return '';
   }
 }
 
 /**
- * Perform offline character-by-character breakdown with fast memoization.
+ * Perform character-by-character breakdown using SINGLE_CHAR_DICT and OFFLINE_LEXICON.
  */
 export function getOfflineBreakdown(text: string): CharacterBreakdown[] {
   if (!text) return [];
-  const cached = BREAKDOWN_CACHE.get(text);
-  if (cached) return cached;
 
   const list: CharacterBreakdown[] = [];
   for (let i = 0; i < text.length; i++) {
@@ -1115,9 +1118,6 @@ export function getOfflineBreakdown(text: string): CharacterBreakdown[] {
     }
   }
 
-  if (BREAKDOWN_CACHE.size < 2000) {
-    BREAKDOWN_CACHE.set(text, list);
-  }
   return list;
 }
 
@@ -1164,7 +1164,7 @@ function segmentChineseText(text: string): { word: string; mean: string }[] {
 }
 
 /**
- * Compose a natural English phrase/sentence translation from segmented tokens and grammar rules.
+ * Compose a natural English phrase/sentence translation from segmented tokens.
  */
 function composeEnglishTranslation(segments: { word: string; mean: string }[], originalText: string): string {
   if (segments.length === 0) return originalText;
@@ -1179,7 +1179,6 @@ function composeEnglishTranslation(segments: { word: string; mean: string }[], o
     return segments[0].mean;
   }
 
-  // Filter out redundant structural grammatical particles in phrase translation
   const ignoreInPhrase = ['particle', 'possessive or modifying particle', 'continuous state particle', 'modal suggestion particle', 'modal question particle', 'question particle', 'modal exclamation particle'];
 
   const words = segments
@@ -1189,21 +1188,6 @@ function composeEnglishTranslation(segments: { word: string; mean: string }[], o
 
   let sentence = words.join(' ');
 
-  // Syntax smoothing for common Chinese-English structures
-  sentence = sentence
-    .replace(/\bbut how do you know how do you know\b/gi, 'but how do you know')
-    .replace(/\bbut how know\b/gi, 'but how do you know')
-    .replace(/\bhow know\b/gi, 'how do you know')
-    .replace(/\bthis is not\b/gi, 'this isn\'t')
-    .replace(/\bdo not know\b/gi, 'don\'t know')
-    .replace(/\bis not\b/gi, 'isn\'t')
-    .replace(/\bone measure word\b/gi, 'a')
-    .replace(/\bone piece of\b/gi, 'a')
-    .replace(/\bvery glad recognize you\b/gi, 'nice to meet you')
-    .replace(/\bwhat is name\b/gi, 'what is [your] name')
-    .replace(/\bmore and more important\b/gi, 'increasingly important');
-
-  // Capitalize first letter
   if (sentence.length > 0) {
     sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
   }
@@ -1211,213 +1195,14 @@ function composeEnglishTranslation(segments: { word: string; mean: string }[], o
   return sentence;
 }
 
-/**
- * Compose natural Chinese phrase and sentence translation from English text and grammatical constituents.
- */
-export function composeChineseTranslationFromEnglish(englishText: string): { zh: string; note: string } {
-  const clean = englishText.trim();
-  if (!clean) return { zh: '', note: '' };
-
-  // 1. Direct exact or stem match check
-  const exact = findEnglishLexiconMatch(clean);
-  if (exact) {
-    return { zh: exact.zh, note: exact.note || `Translation for "${clean}"` };
-  }
-
-  // 2. Split into clauses/sentences by standard English punctuation
-  const clauseRegex = /([.,!?;:]+|\n+)/;
-  const rawParts = clean.split(clauseRegex);
-
-  const translatedParts: string[] = [];
-
-  const CORE_EN_MAP: Record<string, string> = {
-    the: '',
-    a: '一个',
-    an: '一个',
-    this: '这',
-    that: '那',
-    these: '这些',
-    those: '那些',
-    in: '在',
-    on: '在...之上',
-    at: '在',
-    atop: '在...顶上',
-    of: '的',
-    and: '和',
-    or: '或者',
-    with: '带着',
-    without: '没有',
-    from: '从',
-    to: '到',
-    into: '进入',
-    over: '越过',
-    under: '在...之下',
-    through: '穿过',
-    by: '通过',
-    is: '是',
-    are: '是',
-    was: '是',
-    were: '是',
-    be: '是',
-    been: '曾是',
-    being: '正在',
-    have: '有',
-    has: '有',
-    had: '曾经有',
-    not: '不',
-    no: '没有',
-    offers: '呈现出',
-    offer: '提供',
-    presents: '展现出',
-    standing: '站立在',
-    stand: '站立',
-    colossal: '巨大的',
-    stone: '石质',
-    structure: '建筑',
-    structures: '建筑群',
-    spectacular: '壮丽的',
-    views: '景色',
-    view: '风景',
-    profound: '深深的',
-    sense: '感觉',
-    awe: '敬畏',
-    rolling: '连绵起伏的',
-    green: '绿色的',
-    mountains: '青山',
-    mountain: '高山',
-    hills: '山丘',
-    city: '城市',
-    center: '中心',
-    far: '遥远',
-    lies: '座落着',
-    winding: '蜿蜒穿行',
-    gracefully: '优美地',
-    timeless: '永恒的',
-    chapter: '篇章',
-    history: '历史',
-    stepping: '迈步踏入',
-    step: '跨出',
-    back: '回到',
-    great: '伟大的',
-    wall: '城墙',
-    china: '中国',
-    ancient: '古老的',
-    modern: '现代的',
-    culture: '文化',
-    life: '生活',
-    daily: '日常',
-  };
-
-  for (let p = 0; p < rawParts.length; p++) {
-    const part = rawParts[p].trim();
-    if (!part) continue;
-
-    // Preserve punctuation
-    if (/^[.,!?;:]+$/.test(part)) {
-      const punctMap: Record<string, string> = {
-        '.': '。',
-        ',': '，',
-        '!': '！',
-        '?': '？',
-        ';': '；',
-        ':': '：',
-      };
-      translatedParts.push(punctMap[part] || '，');
-      continue;
-    }
-
-    const words = part.match(/[a-zA-Z0-9'-]+/g) || [];
-    if (words.length === 0) continue;
-
-    let i = 0;
-    const clauseTokens: string[] = [];
-
-    while (i < words.length) {
-      let matched = false;
-
-      // Try greedy n-gram matches from length 6 down to 1
-      for (let len = Math.min(6, words.length - i); len >= 1; len--) {
-        const span = words.slice(i, i + len).join(' ').toLowerCase();
-        const found = findEnglishLexiconMatch(span);
-        if (found) {
-          clauseTokens.push(found.zh);
-          i += len;
-          matched = true;
-          break;
-        }
-      }
-
-      if (!matched) {
-        const currentWord = words[i].toLowerCase();
-        const singleFound = findEnglishLexiconMatch(currentWord);
-
-        if (singleFound) {
-          clauseTokens.push(singleFound.zh);
-        } else if (CORE_EN_MAP[currentWord] !== undefined) {
-          if (CORE_EN_MAP[currentWord]) {
-            clauseTokens.push(CORE_EN_MAP[currentWord]);
-          }
-        } else {
-          // Check stem
-          const stems = getEnglishStems(currentWord);
-          let stemMatched = false;
-          for (const s of stems) {
-            const sMatch = findEnglishLexiconMatch(s) || (CORE_EN_MAP[s] ? { zh: CORE_EN_MAP[s] } : null);
-            if (sMatch) {
-              clauseTokens.push(sMatch.zh);
-              stemMatched = true;
-              break;
-            }
-          }
-          if (!stemMatched) {
-            // Keep word if unknown
-            clauseTokens.push(words[i]);
-          }
-        }
-        i += 1;
-      }
-    }
-
-    if (clauseTokens.length > 0) {
-      let joined = clauseTokens.join('');
-      // Clean up common repetitive grammatical particles
-      joined = joined
-        .replace(/的的/g, '的')
-        .replace(/在在/g, '在')
-        .replace(/一个一个/g, '一个')
-        .replace(/之的上/g, '之上')
-        .replace(/在\.\.\.之上/g, '之上')
-        .replace(/在\.\.\.顶上/g, '顶上');
-      translatedParts.push(joined);
-    }
-  }
-
-  let finalZh = translatedParts.join('').trim();
-  // Ensure Chinese punctuation formatting
-  finalZh = finalZh.replace(/([，。！？；])\1+/g, '$1');
-
-  return {
-    zh: finalZh || clean,
-    note: `Composed translation from contextual constituents for "${clean}"`,
-  };
-}
-
 function sanitizeTranslationResponse(raw: string, targetLang: string): string {
   if (!raw) return '';
   let clean = raw.replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
 
   if (targetLang.startsWith('zh')) {
-    // When translating to Chinese:
-    // If output contains Chinese characters, strip out extraneous Latin comments/jargon from translation memory
-    // e.g. "上升air pressure has no change" -> "上升"
-    // e.g. "上升; air pressure has no change" -> "上升"
-    // e.g. "上升 (air pressure)" -> "上升"
     if (/[\u4e00-\u9fa5]/.test(clean)) {
-      // Remove bracketed notes
       clean = clean.replace(/\([^)]*[a-zA-Z][^)]*\)/g, '').replace(/\[[^\]]*[a-zA-Z][^\]]*\]/g, '').trim();
-      // Remove trailing semicolon/pipe/hyphen + English notes
       clean = clean.replace(/[;|,–—-]\s*[a-zA-Z0-9\s.,'"]+$/g, '').trim();
-      // Extract the leading Chinese component if followed by multi-word English notes
       const cjkMatch = clean.match(/^([\u4e00-\u9fa5\u3000-\u303f\uff01-\uff5e0-9\s]+?)(?:[a-zA-Z]{2,}[\s\S]*)?$/);
       if (cjkMatch && cjkMatch[1] && /[\u4e00-\u9fa5]/.test(cjkMatch[1])) {
         clean = cjkMatch[1].trim();
@@ -1429,25 +1214,21 @@ function sanitizeTranslationResponse(raw: string, targetLang: string): string {
 }
 
 /**
- * Client-side/Offline Multi-tier Translate endpoint fetcher.
- * Uses Google Translate GTX & MyMemory web engines to translate whole phrases & sentences accurately as a single unit without API keys.
+ * Fast Google Translate GTX neural translation fetcher.
+ * Uses primary and fallback endpoints with responsive timeout.
  */
-async function fetchGoogleTranslatePhrase(text: string, sourceLang = 'zh-CN', targetLang = 'en'): Promise<string | null> {
+async function fetchGtxTranslation(text: string, sourceLang = 'en', targetLang = 'zh-CN'): Promise<string | null> {
   if (!text || text.trim().length === 0) return null;
   const clean = text.trim();
-  const cacheKey = `${sourceLang}:${targetLang}:${clean}`;
-  if (ASYNC_PHRASE_CACHE.has(cacheKey)) {
-    return ASYNC_PHRASE_CACHE.get(cacheKey)!;
-  }
 
   const sl = sourceLang.startsWith('zh') ? 'zh-CN' : 'en';
   const tl = targetLang.startsWith('en') ? 'en' : 'zh-CN';
 
-  // 1. Google Translate GTX
+  // 1. Primary Google GTX endpoint
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(clean)}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4.0s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
 
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -1459,48 +1240,48 @@ async function fetchGoogleTranslatePhrase(text: string, sourceLang = 'zh-CN', ta
         let fullTranslation = translatedParts.join('').trim();
         fullTranslation = sanitizeTranslationResponse(fullTranslation, tl);
         if (fullTranslation && fullTranslation.toLowerCase() !== clean.toLowerCase()) {
-          if (ASYNC_PHRASE_CACHE.size < 1000) {
-            ASYNC_PHRASE_CACHE.set(cacheKey, fullTranslation);
-          }
           return fullTranslation;
         }
       }
     }
   } catch (e) {
-    // Attempt secondary fallback provider
+    // Primary endpoint failed, fallback below
   }
 
-  // 2. MyMemory Translation API fallback
+  // 2. Secondary Google Translate mirror
   try {
-    const myMemoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${sl}|${tl}`;
+    const fallbackUrl = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${sl}&tl=${tl}&q=${encodeURIComponent(clean)}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-    const res = await fetch(myMemoryUrl, { signal: controller.signal });
+    const res = await fetch(fallbackUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
-      const match = data?.responseData?.translatedText;
-      if (match && typeof match === 'string' && match.trim()) {
-        const cleanedMatch = sanitizeTranslationResponse(match, tl);
-        if (cleanedMatch && cleanedMatch.toLowerCase() !== clean.toLowerCase()) {
-          if (ASYNC_PHRASE_CACHE.size < 1000) {
-            ASYNC_PHRASE_CACHE.set(cacheKey, cleanedMatch);
-          }
-          return cleanedMatch;
+      if (Array.isArray(data) && typeof data[0] === 'string') {
+        let fullTranslation = data[0].trim();
+        fullTranslation = sanitizeTranslationResponse(fullTranslation, tl);
+        if (fullTranslation && fullTranslation.toLowerCase() !== clean.toLowerCase()) {
+          return fullTranslation;
+        }
+      } else if (typeof data === 'string') {
+        let fullTranslation = data.trim();
+        fullTranslation = sanitizeTranslationResponse(fullTranslation, tl);
+        if (fullTranslation && fullTranslation.toLowerCase() !== clean.toLowerCase()) {
+          return fullTranslation;
         }
       }
     }
   } catch (e) {
-    // Offline composition will handle
+    // Secondary endpoint failed
   }
 
   return null;
 }
 
 /**
- * Synchronous offline translation using fast indexed lexicon & hybrid segmentation.
+ * Last-resort offline dictionary fallback (non-contextual general gloss).
  */
 export function translateOffline(
   text: string,
@@ -1510,9 +1291,9 @@ export function translateOffline(
   const cleanText = text.trim();
   const cleanContext = (context || text).trim();
   const isEnToZh = mode === 'en-to-zh' || !/[\u4e00-\u9fa5]/.test(cleanText);
-  const memKey = `${isEnToZh ? 'en-to-zh' : 'zh-to-en'}:${cleanText}:${cleanContext}`;
+  const cacheKey = `${cleanText}:${cleanContext}`;
 
-  const cachedResult = OFFLINE_TRANSLATION_MEM_CACHE.get(memKey);
+  const cachedResult = getCachedTranslation(cacheKey);
   if (cachedResult) {
     return cachedResult;
   }
@@ -1533,10 +1314,15 @@ export function translateOffline(
         grammaticalNote = 'Single character lexical unit.';
       } else {
         const segments = segmentChineseText(cleanText);
-        englishMeaning = composeEnglishTranslation(segments, cleanText);
-        grammaticalNote = `Segmented phrase: ${segments.map((s) => `${s.word} (${s.mean})`).join(' + ')}`;
+        const composed = composeEnglishTranslation(segments, cleanText);
+        if (composed && composed !== cleanText) {
+          englishMeaning = composed;
+          grammaticalNote = `Segmented phrase: ${segments.map((s) => `${s.word} (${s.mean})`).join(' + ')}`;
+        }
       }
     }
+
+    const isEnglishFound = Boolean(englishMeaning && englishMeaning.trim() !== cleanText.trim());
 
     const contextSegments = segmentChineseText(cleanContext);
     const contextTranslation = composeEnglishTranslation(contextSegments, cleanContext);
@@ -1544,67 +1330,60 @@ export function translateOffline(
     result = {
       chinese: cleanText,
       pinyin: py,
-      english: englishMeaning || cleanText,
+      english: isEnglishFound ? englishMeaning! : '',
       contextSentence: cleanContext,
-      contextTranslation: contextTranslation ? `"${contextTranslation}"` : `"${cleanContext}"`,
-      grammaticalNote: grammaticalNote || 'Offline dictionary entry with smart Pinyin synthesis.',
-      breakdown,
+      contextTranslation: contextTranslation ? `"${contextTranslation}"` : '',
+      grammaticalNote: isEnglishFound ? (grammaticalNote || 'Offline dictionary entry.') : undefined,
+      breakdown: isEnglishFound ? breakdown : [],
       mode: 'zh-to-en',
       selectedText: cleanText,
       source: 'offline-cedict',
+      status: isEnglishFound ? 'success' : 'not_found',
+      errorMessage: isEnglishFound ? undefined : `No offline translation found for "${cleanText}"`,
     };
   } else {
-    // English to Chinese lookup with robust composition engine
-    let chinese = '';
-    let grammaticalNote = '';
-
+    // English-to-Chinese fallback: exact/stemmed dictionary match only
     const directMatch = findEnglishLexiconMatch(cleanText);
-    if (directMatch) {
-      chinese = directMatch.zh;
-      grammaticalNote = directMatch.note || `Chinese translation for "${cleanText}"`;
-    } else {
-      const composed = composeChineseTranslationFromEnglish(cleanText);
-      chinese = composed.zh;
-      grammaticalNote = composed.note;
-    }
-
-    const isChineseFound = /[\u4e00-\u9fa5]/.test(chinese);
+    const isChineseFound = Boolean(directMatch && /[\u4e00-\u9fa5]/.test(directMatch.zh));
+    const chinese = isChineseFound ? directMatch!.zh : '';
     const py = isChineseFound ? getOfflinePinyin(chinese) : '';
     const breakdown = isChineseFound ? getOfflineBreakdown(chinese) : [];
-
-    let contextTranslation = '';
+    
+    // Check if whole context sentence matches a dictionary entry
+    let ctxZh = '';
     if (cleanContext === cleanText) {
-      contextTranslation = chinese;
+      ctxZh = isChineseFound ? chinese : '';
     } else {
-      const ctxComposed = composeChineseTranslationFromEnglish(cleanContext);
-      contextTranslation = ctxComposed.zh;
+      const ctxMatch = findEnglishLexiconMatch(cleanContext);
+      ctxZh = (ctxMatch && /[\u4e00-\u9fa5]/.test(ctxMatch.zh)) ? ctxMatch.zh : '';
     }
 
     result = {
-      chinese: isChineseFound ? chinese : (chinese ? chinese : cleanText),
+      chinese: isChineseFound ? chinese : '',
       pinyin: py,
       english: cleanText,
       contextSentence: cleanContext,
-      contextTranslation: contextTranslation ? `"${contextTranslation}"` : `"${cleanContext}"`,
-      grammaticalNote: grammaticalNote || (isChineseFound ? 'Offline English-Chinese lexicon lookup.' : 'Offline word entry.'),
-      breakdown,
+      contextTranslation: ctxZh ? `"${ctxZh}"` : '',
+      grammaticalNote: isChineseFound 
+        ? (directMatch?.note || `Offline dictionary match for "${cleanText}"`)
+        : undefined,
+      breakdown: isChineseFound ? breakdown : [],
       mode: 'en-to-zh',
       selectedText: cleanText,
       source: 'offline-cedict',
+      status: isChineseFound ? 'success' : 'not_found',
+      errorMessage: isChineseFound ? undefined : `No offline translation found for "${cleanText}"`,
     };
   }
 
-  if (OFFLINE_TRANSLATION_MEM_CACHE.size < 1000) {
-    OFFLINE_TRANSLATION_MEM_CACHE.set(memKey, result);
-  }
-
+  setCachedTranslation(cacheKey, result);
   return result;
 }
 
 /**
- * Asynchronous translation engine for words, whole phrases, and context sentences.
- * Uses Google Translate GTX / MyMemory frameworks for high-accuracy phrase & sentence translation,
- * falling back gracefully to indexed CC-CEDICT offline composition rules.
+ * Primary contextual translation pipeline:
+ * Sends selected text and its full context sentence in parallel to the fast Google GTX endpoint (1.5s timeout).
+ * Falls back to offline lexicon dictionary if network is unavailable or times out.
  */
 export async function translateOfflineAsync(
   text: string,
@@ -1613,16 +1392,23 @@ export async function translateOfflineAsync(
 ): Promise<TranslationResult> {
   const cleanText = text.trim();
   const cleanContext = (context || text).trim();
-
   const isEnToZh = mode === 'en-to-zh' || !/[\u4e00-\u9fa5]/.test(cleanText);
+  const cacheKey = `${cleanText}:${cleanContext}`;
+
+  // 1. Single LRU Cache check
+  const cached = getCachedTranslation(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const srcLang = isEnToZh ? 'en' : 'zh-CN';
   const tgtLang = isEnToZh ? 'zh-CN' : 'en';
 
-  // 1. Fetch phrase translation and full context translation
+  // 2. Primary Fast GTX Translation: parallel requests for phrase & context sentence
   try {
     const [phraseTranslation, contextTranslation] = await Promise.all([
-      fetchGoogleTranslatePhrase(cleanText, srcLang, tgtLang),
-      cleanContext !== cleanText ? fetchGoogleTranslatePhrase(cleanContext, srcLang, tgtLang) : Promise.resolve(null),
+      fetchGtxTranslation(cleanText, srcLang, tgtLang),
+      cleanContext !== cleanText ? fetchGtxTranslation(cleanContext, srcLang, tgtLang) : Promise.resolve(null),
     ]);
 
     if (phraseTranslation && phraseTranslation.trim().toLowerCase() !== cleanText.toLowerCase()) {
@@ -1631,37 +1417,34 @@ export async function translateOfflineAsync(
       const py = getOfflinePinyin(zhWord);
       const breakdown = getOfflineBreakdown(zhWord);
 
-      let finalCtxTranslation = contextTranslation ? `"${contextTranslation.trim()}"` : '';
-      if (!finalCtxTranslation) {
-        if (isEnToZh) {
-          const ctxComp = composeChineseTranslationFromEnglish(cleanContext);
-          finalCtxTranslation = `"${ctxComp.zh}"`;
-        } else {
-          const ctxSegs = segmentChineseText(cleanContext);
-          finalCtxTranslation = `"${composeEnglishTranslation(ctxSegs, cleanContext)}"`;
-        }
-      }
+      const finalCtxTranslation = contextTranslation 
+        ? `"${contextTranslation.trim()}"` 
+        : (cleanContext === cleanText ? `"${phraseTranslation.trim()}"` : `"${cleanContext}"`);
 
-      return {
+      const result: TranslationResult = {
         chinese: zhWord,
         pinyin: py,
         english: enWord,
         contextSentence: cleanContext,
         contextTranslation: finalCtxTranslation,
         grammaticalNote: isEnToZh
-          ? 'Full-phrase English-to-Chinese translation via neural translation engine.'
-          : 'Full-phrase translation via Google Translate engine.',
+          ? 'Contextual neural translation via Google GTX engine.'
+          : 'Contextual translation via Google GTX engine.',
         breakdown,
         mode: isEnToZh ? 'en-to-zh' : 'zh-to-en',
         selectedText: cleanText,
-        source: 'offline-google-gtx',
+        source: 'google-gtx',
+        status: 'success',
       };
+
+      setCachedTranslation(cacheKey, result);
+      return result;
     }
   } catch (e) {
-    // Fall back to offline lexicon & composition engine
+    // Network fail or timeout -> fallback triggers below
   }
 
-  // 2. Fall back to offline lexicon & smart composition engine
+  // 3. Last-resort fallback to offline lexicon (non-contextual general gloss)
   return translateOffline(cleanText, cleanContext, isEnToZh ? 'en-to-zh' : 'zh-to-en');
 }
 

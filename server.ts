@@ -258,10 +258,10 @@ async function generateGeminiContentWithFallback(
   throw lastError || new Error('All AI model attempts exhausted');
 }
 
-// Contextual Translation Endpoint (Powered by Gemini AI with Offline Lexicon fallback)
+// Contextual Translation Endpoint (Fast Neural Google GTX with Offline Lexicon fallback)
 app.post('/api/translate-context', async (req, res) => {
   try {
-    const { text, context, mode: reqMode, useAi } = req.body;
+    const { text, context, mode: reqMode } = req.body;
 
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Text selection is required' });
@@ -275,84 +275,10 @@ app.post('/api/translate-context', async (req, res) => {
     const isEnglishSelection = !hasChineseInText && /[a-zA-Z]/.test(trimmedText);
     const resolvedMode: 'zh-to-en' | 'en-to-zh' = isEnglishSelection ? 'en-to-zh' : (reqMode || (hasChineseInText ? 'zh-to-en' : 'en-to-zh'));
 
-    // If Gemini AI key is available, utilize Gemini for contextual translation
-    if (process.env.GEMINI_API_KEY && useAi !== false) {
-      try {
-        const ai = getGeminiClient();
-
-        const prompt = resolvedMode === 'en-to-zh'
-          ? `You are an expert bilingual Chinese-English lexicographer and translator.
-Analyze this English word/phrase "${trimmedText}" within the surrounding context sentence: "${trimmedContext}".
-
-TRANSLATION INSTRUCTIONS:
-- "chinese": Provide the accurate, natural Simplified Chinese translation for the specific selected English term/phrase "${trimmedText}". (For example, if the English term is "rising", output "上升"; if "smoke", output "烟雾"; if "copper", output "铜"). Do NOT output English words in "chinese".
-- "pinyin": Provide the accurate Hanyu Pinyin with standard tone marks for that Chinese translation (e.g., "shàng shēng").
-- "english": Return "${trimmedText}".
-- "contextSentence": Return "${trimmedContext}".
-- "contextTranslation": Provide the complete, fluent Simplified Chinese translation of the entire surrounding context sentence "${trimmedContext}".
-- "breakdown": Provide an array of character objects for EACH Chinese character in "chinese", with fields "char" (single character), "pinyin" (tone marked), and "mean" (concise, precise English meaning of that character).`
-          : `You are an expert bilingual Chinese-English lexicographer and translator.
-Analyze this Chinese word/phrase "${trimmedText}" within the surrounding context sentence: "${trimmedContext}".
-
-TRANSLATION INSTRUCTIONS:
-- "english": Provide a natural, smooth, idiomatic English translation for the specific selected term/phrase "${trimmedText}" as used in this context. If "${trimmedText}" is a single word or short term (e.g., "重要", "学习", "儿子"), translate only "${trimmedText}", NOT the entire sentence.
-- "chinese": Return "${trimmedText}".
-- "pinyin": Provide accurate Hanyu Pinyin with standard tone marks for "${trimmedText}".
-- "contextSentence": Return "${trimmedContext}".
-- "contextTranslation": Provide the complete, fluent English translation of the entire surrounding context sentence "${trimmedContext}".
-- "breakdown": Provide an array of character objects for EACH Chinese character in "${trimmedText}", with fields "char" (single character), "pinyin" (tone marked), and "mean" (concise, precise English meaning of that character).`;
-
-        const schema = {
-          type: Type.OBJECT,
-          properties: {
-            chinese: { type: Type.STRING },
-            pinyin: { type: Type.STRING },
-            english: { type: Type.STRING },
-            contextSentence: { type: Type.STRING },
-            contextTranslation: { type: Type.STRING },
-            breakdown: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  char: { type: Type.STRING },
-                  pinyin: { type: Type.STRING },
-                  mean: { type: Type.STRING },
-                },
-                required: ['char', 'pinyin', 'mean'],
-              },
-            },
-          },
-          required: ['chinese', 'pinyin', 'english', 'contextSentence', 'contextTranslation', 'breakdown'],
-        };
-
-        const responseText = await generateGeminiContentWithFallback(ai, prompt, schema, { fast: true });
-
-        if (responseText) {
-          const parsed = JSON.parse(responseText);
-          const breakdown = (parsed.breakdown || []).map((b: any) => ({
-            char: b.char,
-            pinyin: b.pinyin,
-            mean: b.mean || b.meaning || '',
-          }));
-
-          return res.json({
-            ...parsed,
-            breakdown,
-            mode: resolvedMode,
-            selectedText: trimmedText,
-            source: 'gemini-ai',
-          });
-        }
-      } catch (aiErr: any) {
-        console.info('AI service busy or unavailable, activating offline high-accuracy fallback engine.');
-      }
-    }
-
-    // Offline translation fallback
-    const offlineResult = await translateOfflineAsync(trimmedText, trimmedContext, resolvedMode);
-    return res.json(offlineResult);
+    const result = await translateOfflineAsync(trimmedText, trimmedContext, resolvedMode);
+    return res.json(result);
   } catch (error: any) {
+    console.error('Translation error in /api/translate-context:', error);
     res.status(500).json({ error: 'Translation error' });
   }
 });

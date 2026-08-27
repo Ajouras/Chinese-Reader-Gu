@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { TranslationResult, Flashcard, TextFileItem } from '../types';
 import { tokenizeText, getSurroundingSentence, speakText, TextToken, detectLinguisticUnitAtToken } from '../utils/textParser';
-import { translateOfflineAsync } from '../utils/offlineDictionary';
+import { translateOffline, translateOfflineAsync } from '../utils/offlineDictionary';
 
 function escapeRegex(str: string) {
   return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -85,8 +85,6 @@ interface ContextualReaderProps {
 export const ContextualReader: React.FC<ContextualReaderProps> = ({
   onSaveToBank,
   deckNames,
-  useAiTranslation = false,
-  onToggleAiTranslation,
   saveCardShortcut = 's',
 }) => {
   // Text Library state
@@ -279,7 +277,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     const hasChineseInWord = /[\u4e00-\u9fa5]/.test(trimmed);
     const isEnglishWord = !hasChineseInWord && /[a-zA-Z]/.test(trimmed);
     const mode: 'zh-to-en' | 'en-to-zh' = isEnglishWord ? 'en-to-zh' : (hasChineseInWord ? 'zh-to-en' : (sourceLang === 'zh' ? 'zh-to-en' : 'en-to-zh'));
-    const cacheKey = `${mode}:${trimmed}:${contextSentence.trim()}:${useAiTranslation ? 'ai' : 'offline'}`;
+    const cacheKey = `${trimmed}:${contextSentence.trim()}`;
 
     if (tokenId) {
       setActiveTokenId(tokenId);
@@ -298,29 +296,44 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     setIsLoadingTranslation(true);
 
     try {
-      const res = await fetch('/api/translate-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: trimmed,
-          context: contextSentence,
-          mode,
-          useAi: useAiTranslation,
-        }),
-      });
-
-      if (res.ok) {
-        const data: TranslationResult = await res.json();
-        clientCacheRef.current.set(cacheKey, data);
-        setTranslation(data);
-      } else {
-        const offlineResult = await translateOfflineAsync(trimmed, contextSentence, mode);
-        clientCacheRef.current.set(cacheKey, offlineResult);
-        setTranslation(offlineResult);
+      // 1. Primary Translation Path: Direct neural GTX translator (runs in user's browser for zero proxy lag and full arbitrary span support)
+      const primaryResult = await translateOfflineAsync(trimmed, contextSentence, mode);
+      if (primaryResult.status === 'success') {
+        clientCacheRef.current.set(cacheKey, primaryResult);
+        setTranslation(primaryResult);
+        return;
       }
+
+      // 2. Secondary route: Backend endpoint check
+      try {
+        const res = await fetch('/api/translate-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: trimmed,
+            context: contextSentence,
+            mode,
+          }),
+        });
+
+        if (res.ok) {
+          const data: TranslationResult = await res.json();
+          if (data.status === 'success') {
+            clientCacheRef.current.set(cacheKey, data);
+            setTranslation(data);
+            return;
+          }
+        }
+      } catch (srvErr) {
+        // Backend fallback silent
+      }
+
+      // 3. Fallback to dictionary result (or loud failure if arbitrary phrase not found)
+      clientCacheRef.current.set(cacheKey, primaryResult);
+      setTranslation(primaryResult);
     } catch (err: any) {
       try {
-        const offlineResult = await translateOfflineAsync(trimmed, contextSentence, mode);
+        const offlineResult = translateOffline(trimmed, contextSentence, mode);
         clientCacheRef.current.set(cacheKey, offlineResult);
         setTranslation(offlineResult);
       } catch (offErr) {
@@ -608,29 +621,19 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
             </button>
           </div>
 
-          {/* Engine Status Toggle Button */}
-          <button
-            onClick={onToggleAiTranslation}
+          {/* Fast Neural Translation Status Badge */}
+          <div
             style={{
               backgroundColor: 'var(--color-sidebar-card-bg)',
-              borderColor: useAiTranslation ? 'var(--color-accent)' : 'var(--color-nav-border)',
-              color: useAiTranslation ? 'var(--color-accent)' : 'var(--color-text-primary)',
+              borderColor: 'var(--color-nav-border)',
+              color: 'var(--color-text-primary)',
             }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-none text-xs font-semibold border transition opacity-90 hover:opacity-100"
-            title={useAiTranslation ? 'Click to switch to 100% Offline CC-CEDICT Dictionary Engine' : 'Click to switch to Google Gemini AI Context Engine'}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-none text-xs font-semibold border opacity-90 select-none"
+            title="Fast Neural Translation Engine (Google GTX, 1.5s timeout with offline dictionary fallback)"
           >
-            {useAiTranslation ? (
-              <>
-                <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
-                <span>Gemini AI Engine</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Offline Engine (0ms)</span>
-              </>
-            )}
-          </button>
+            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
+            <span>Neural Translator</span>
+          </div>
 
           {/* Upload .txt file to library */}
           <button
@@ -867,33 +870,35 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                   className="w-4 h-4" 
                 />
                 <h2 className="text-sm font-bold tracking-wide">Context Breakdown</h2>
-                {translation?.source && (
+                {translation?.source && translation.status !== 'not_found' && (
                   <span className={`text-[10px] px-2 py-0.5 font-mono uppercase font-bold border rounded-none ${
                     translation.source === 'gemini-ai'
                       ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                      : translation.source === 'offline-google-gtx'
+                      : translation.source === 'offline-google-gtx' || translation.source === 'google-gtx'
                       ? 'bg-sky-500/10 text-sky-300 border-sky-500/30'
                       : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                   }`}>
-                    {translation.source === 'gemini-ai' ? 'Gemini AI' : translation.source === 'offline-google-gtx' ? 'Phrase Engine' : 'Offline Lexicon'}
+                    {translation.source === 'gemini-ai' ? 'Gemini AI' : translation.source === 'offline-google-gtx' || translation.source === 'google-gtx' ? 'Phrase Engine' : 'Offline Lexicon'}
                   </span>
                 )}
               </div>
-              {translation && (
+              {translation && translation.status !== 'not_found' && (
                 <div className="flex items-center space-x-1.5">
-                  <button
-                    onClick={() => speakText(translation.chinese, 'zh-CN')}
-                    style={{
-                      backgroundColor: 'var(--color-sidebar-card-bg)',
-                      color: 'var(--color-accent, #f59e0b)',
-                      borderColor: 'var(--color-accent, #f59e0b)',
-                    }}
-                    className="flex items-center space-x-1 text-xs border px-2.5 py-1 rounded-none font-semibold transition"
-                    title="Listen to Chinese pronunciation"
-                  >
-                    <Volume2 className="w-3.5 h-3.5" />
-                    <span>Audio (中文)</span>
-                  </button>
+                  {translation.chinese && (
+                    <button
+                      onClick={() => speakText(translation.chinese, 'zh-CN')}
+                      style={{
+                        backgroundColor: 'var(--color-sidebar-card-bg)',
+                        color: 'var(--color-accent, #f59e0b)',
+                        borderColor: 'var(--color-accent, #f59e0b)',
+                      }}
+                      className="flex items-center space-x-1 text-xs border px-2.5 py-1 rounded-none font-semibold transition"
+                      title="Listen to Chinese pronunciation"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>Audio (中文)</span>
+                    </button>
+                  )}
                   {translation.english && (
                     <button
                       onClick={() => speakText(translation.english, 'en-US')}
@@ -932,6 +937,33 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
               >
                 <p className="font-bold">Error:</p>
                 <p>{translationError}</p>
+              </div>
+            ) : translation && translation.status === 'not_found' ? (
+              <div 
+                style={{ 
+                  backgroundColor: 'var(--color-sidebar-card-bg, #020617)',
+                  borderColor: 'var(--color-nav-border)',
+                }}
+                className="border rounded-none p-5 space-y-3 text-center"
+              >
+                <div className="inline-flex p-3 rounded-none bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <HelpCircle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold tracking-wide">No Offline Translation Found</h3>
+                  <p className="text-xs opacity-75 max-w-xs mx-auto leading-relaxed">
+                    No dictionary entry was found for <span className="font-semibold text-amber-400">"{translation.selectedText}"</span> in the offline lexicon.
+                  </p>
+                </div>
+                {translation.contextSentence && (
+                  <div 
+                    style={{ borderColor: 'var(--color-nav-border)' }}
+                    className="border-t pt-3 mt-3 text-left text-xs opacity-80"
+                  >
+                    <span className="font-mono text-[10px] block opacity-60 uppercase mb-1">Sentence Context:</span>
+                    <p className="italic">{translation.contextSentence}</p>
+                  </div>
+                )}
               </div>
             ) : translation ? (
               <div className="space-y-4 font-sans">
@@ -1043,7 +1075,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
           </div>
 
           {/* Bottom Flashcard Save Controls */}
-          {translation && (
+          {translation && translation.status !== 'not_found' && (
             <div 
               style={{ 
                 backgroundColor: 'var(--color-sidebar-card-bg, #020617)',

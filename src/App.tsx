@@ -21,20 +21,10 @@ export default function App() {
     saveStoredTheme(themeConfig);
   }, [themeConfig]);
 
-  // AI Translation engine by default with offline fallback
-  const [useAiTranslation, setUseAiTranslation] = useState<boolean>(() => {
-    const stored = localStorage.getItem('useAiTranslation');
-    return stored !== null ? stored === 'true' : true;
-  });
-
   // User-configurable shortcut key to save card on hover (default 's')
   const [saveCardShortcut, setSaveCardShortcut] = useState<string>(() => {
     return localStorage.getItem('saveCardShortcut') || 's';
   });
-
-  useEffect(() => {
-    localStorage.setItem('useAiTranslation', String(useAiTranslation));
-  }, [useAiTranslation]);
 
   useEffect(() => {
     localStorage.setItem('saveCardShortcut', saveCardShortcut);
@@ -260,8 +250,6 @@ export default function App() {
           <ContextualReader
             onSaveToBank={handleSaveToBank}
             deckNames={decks.map((d) => ({ id: d.id, name: d.name }))}
-            useAiTranslation={useAiTranslation}
-            onToggleAiTranslation={() => setUseAiTranslation(!useAiTranslation)}
             saveCardShortcut={saveCardShortcut}
           />
         )}
@@ -292,8 +280,6 @@ export default function App() {
 
         {activeTab === 'settings' && (
           <SettingsModal
-            useAiTranslation={useAiTranslation}
-            setUseAiTranslation={setUseAiTranslation}
             saveCardShortcut={saveCardShortcut}
             setSaveCardShortcut={setSaveCardShortcut}
             themeConfig={themeConfig}

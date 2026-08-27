@@ -80,7 +80,7 @@ export interface CardDisplayConfig {
 }
 
 export interface UserSettings {
-  useAiTranslation: boolean;
+  useAiTranslation?: boolean;
   saveCardShortcut: string;
 }
 
@@ -95,6 +95,8 @@ export interface TranslationResult {
   mode: 'zh-to-en' | 'en-to-zh';
   selectedText: string;
   source?: string;
+  status?: 'success' | 'not_found';
+  errorMessage?: string;
 }
 
 export interface BankStatus {
