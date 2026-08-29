@@ -127,6 +127,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
   const justSelectedTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isSelectingRef = useRef<boolean>(false);
   const clientCacheRef = useRef<Map<string, TranslationResult>>(new Map());
+  const latestRequestIdRef = useRef<number>(0);
 
   // 1. Fetch text library on mount and when requested
   const fetchTextLibrary = async (targetFileToSelect?: string) => {
@@ -272,6 +273,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
   const handleTranslate = async (word: string, contextSentence: string, tokenId?: string) => {
     if (!word || word.trim().length === 0) return;
 
+    const requestId = ++latestRequestIdRef.current;
     const trimmed = word.trim();
     // Accurately determine translation mode from the clicked word itself
     const hasChineseInWord = /[\u4e00-\u9fa5]/.test(trimmed);
@@ -298,6 +300,8 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     try {
       // 1. Primary Translation Path: Direct neural GTX translator (runs in user's browser for zero proxy lag and full arbitrary span support)
       const primaryResult = await translateOfflineAsync(trimmed, contextSentence, mode);
+      if (latestRequestIdRef.current !== requestId) return;
+
       if (primaryResult.status === 'success') {
         clientCacheRef.current.set(cacheKey, primaryResult);
         setTranslation(primaryResult);
@@ -316,8 +320,11 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
           }),
         });
 
+        if (latestRequestIdRef.current !== requestId) return;
+
         if (res.ok) {
           const data: TranslationResult = await res.json();
+          if (latestRequestIdRef.current !== requestId) return;
           if (data.status === 'success') {
             clientCacheRef.current.set(cacheKey, data);
             setTranslation(data);
@@ -328,19 +335,26 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
         // Backend fallback silent
       }
 
+      if (latestRequestIdRef.current !== requestId) return;
+
       // 3. Fallback to dictionary result (or loud failure if arbitrary phrase not found)
       clientCacheRef.current.set(cacheKey, primaryResult);
       setTranslation(primaryResult);
     } catch (err: any) {
+      if (latestRequestIdRef.current !== requestId) return;
       try {
         const offlineResult = translateOffline(trimmed, contextSentence, mode);
+        if (latestRequestIdRef.current !== requestId) return;
         clientCacheRef.current.set(cacheKey, offlineResult);
         setTranslation(offlineResult);
       } catch (offErr) {
+        if (latestRequestIdRef.current !== requestId) return;
         setTranslationError('Could not translate selected text. Please try again.');
       }
     } finally {
-      setIsLoadingTranslation(false);
+      if (latestRequestIdRef.current === requestId) {
+        setIsLoadingTranslation(false);
+      }
     }
   };
 
@@ -515,6 +529,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
             <span>{libraryError}</span>
           </div>
           <button
+            type="button"
             onClick={() => setLibraryError(null)}
             className="hover:underline font-semibold ml-4 opacity-80 hover:opacity-100"
           >
@@ -542,6 +557,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
             }}
           >
             <button
+              type="button"
               onClick={() => setSourceLang('zh')}
               style={{
                 backgroundColor: sourceLang === 'zh' ? 'var(--color-reader-panel-bg)' : 'transparent',
@@ -553,6 +569,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
               <span>中文 Chinese</span>
             </button>
             <button
+              type="button"
               onClick={() => setSourceLang('en')}
               style={{
                 backgroundColor: sourceLang === 'en' ? 'var(--color-reader-panel-bg)' : 'transparent',
@@ -607,6 +624,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
             {/* Rescan / Refresh Library Button */}
             <button
+              type="button"
               onClick={() => fetchTextLibrary()}
               disabled={isLoadingLibrary}
               style={{
@@ -637,6 +655,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
 
           {/* Upload .txt file to library */}
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             style={{
               backgroundColor: 'var(--color-sidebar-card-bg)',
@@ -670,6 +689,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
           >
             <Type className="w-3.5 h-3.5 opacity-60" />
             <button
+              type="button"
               onClick={() => setFontSize((prev) => Math.max(14, prev - 2))}
               className="px-1.5 py-0.5 text-xs font-bold hover:opacity-80"
               title="Decrease Font Size"
@@ -678,6 +698,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
             </button>
             <span className="text-xs font-mono px-1 font-semibold">{fontSize}px</span>
             <button
+              type="button"
               onClick={() => setFontSize((prev) => Math.min(36, prev + 2))}
               className="px-1.5 py-0.5 text-xs font-bold hover:opacity-80"
               title="Increase Font Size"
@@ -687,6 +708,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={() => setIsEditingText(!isEditingText)}
             style={{
               backgroundColor: isEditingText ? 'var(--color-accent)' : 'var(--color-sidebar-card-bg)',
@@ -886,6 +908,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                 <div className="flex items-center space-x-1.5">
                   {translation.chinese && (
                     <button
+                      type="button"
                       onClick={() => speakText(translation.chinese, 'zh-CN')}
                       style={{
                         backgroundColor: 'var(--color-sidebar-card-bg)',
@@ -901,6 +924,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                   )}
                   {translation.english && (
                     <button
+                      type="button"
                       onClick={() => speakText(translation.english, 'en-US')}
                       style={{
                         backgroundColor: 'var(--color-sidebar-card-bg)',
@@ -1122,6 +1146,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
               </div>
 
               <button
+                type="button"
                 onClick={handleSaveWord}
                 disabled={isSavedSuccess}
                 style={

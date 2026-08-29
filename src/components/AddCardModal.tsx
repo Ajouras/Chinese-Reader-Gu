@@ -114,6 +114,7 @@ export const AddCardModal: React.FC<AddCardModalProps> = ({
             <h3 className="text-base font-bold">Add Manual Flashcard</h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 transition opacity-70 hover:opacity-100"
           >

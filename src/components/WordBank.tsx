@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Database,
   Search,
@@ -31,7 +31,7 @@ interface WordBankProps {
   onDeleteDeck?: (deckId: string) => void;
   onRestoreBackup: () => Promise<void>;
   onExportCards: (format: 'json' | 'csv') => void;
-  onImportCards: (jsonOrCsv: string) => void;
+  onImportCards: (jsonOrCsv: string) => { success: boolean; importedCount: number; skippedCount: number; message: string } | void;
   onOpenAddCard?: () => void;
 }
 
@@ -48,6 +48,7 @@ export const WordBank: React.FC<WordBankProps> = ({
   onImportCards,
   onOpenAddCard,
 }) => {
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDeckFilter, setSelectedDeckFilter] = useState<string>('all');
   const [newDeckName, setNewDeckName] = useState<string>('');
@@ -138,10 +139,14 @@ export const WordBank: React.FC<WordBankProps> = ({
     reader.onload = (event) => {
       const content = event.target?.result as string;
       if (content) {
-        onImportCards(content);
+        const result = onImportCards(content);
+        if (result && typeof result === 'object' && 'message' in result) {
+          setRestoreNotice(result.message);
+        }
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -198,6 +203,7 @@ export const WordBank: React.FC<WordBankProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={handleRestoreClick}
             disabled={isRestoring || !bankStatus.hasBackup}
             className="px-3 py-2 border rounded-none text-xs font-semibold transition flex items-center space-x-1 disabled:opacity-50"
@@ -222,33 +228,61 @@ export const WordBank: React.FC<WordBankProps> = ({
             color: 'var(--color-text-primary)'
           }}
         >
-          <span className="text-xs font-medium opacity-80">Export Options</span>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium opacity-80">Portability & Backup</span>
+            <span className="text-[10px] opacity-65 font-mono">CSV (Anki) / JSON</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 pt-1">
             <button
+              type="button"
               onClick={() => onExportCards('json')}
-              className="flex-1 py-1.5 px-2 border rounded-none text-xs font-semibold flex items-center justify-center space-x-1 transition"
+              className="py-1.5 px-2 border rounded-none text-xs font-semibold flex items-center justify-center space-x-1 transition hover:opacity-90"
               style={{
                 backgroundColor: 'var(--color-sidebar-card-bg)',
                 borderColor: 'var(--color-nav-border)',
                 color: 'var(--color-text-primary)'
               }}
+              title="Export bank as JSON"
             >
               <FileJson className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
               <span>JSON</span>
             </button>
             <button
+              type="button"
               onClick={() => onExportCards('csv')}
-              className="flex-1 py-1.5 px-2 border rounded-none text-xs font-semibold flex items-center justify-center space-x-1 transition"
+              className="py-1.5 px-2 border rounded-none text-xs font-semibold flex items-center justify-center space-x-1 transition hover:opacity-90"
               style={{
                 backgroundColor: 'var(--color-sidebar-card-bg)',
-                borderColor: 'var(--color-accent)',
+                borderColor: 'var(--color-nav-border)',
                 color: 'var(--color-accent)'
               }}
+              title="Export Anki-compatible CSV"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>CSV (Anki)</span>
+              <span>CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+              className="py-1.5 px-2 border rounded-none text-xs font-semibold flex items-center justify-center space-x-1 transition hover:opacity-90"
+              style={{
+                backgroundColor: 'var(--color-accent)',
+                borderColor: 'var(--color-accent)',
+                color: 'var(--color-btn-text-on-accent, var(--color-accent-text))'
+              }}
+              title="Import Flashcards from CSV (Anki) or JSON"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Import</span>
             </button>
           </div>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,.json,text/csv,application/json,text/plain"
+            onChange={handleImportFile}
+            className="hidden"
+          />
         </div>
       </div>
 
@@ -258,7 +292,11 @@ export const WordBank: React.FC<WordBankProps> = ({
           style={{ backgroundColor: 'var(--color-reader-panel-bg)' }}
         >
           <span>{restoreNotice}</span>
-          <button onClick={() => setRestoreNotice(null)} className="opacity-80 hover:opacity-100 font-bold text-sm">
+          <button
+            type="button"
+            onClick={() => setRestoreNotice(null)}
+            className="opacity-80 hover:opacity-100 font-bold text-sm"
+          >
             ×
           </button>
         </div>
@@ -317,6 +355,7 @@ export const WordBank: React.FC<WordBankProps> = ({
           <div className="flex items-center space-x-2 text-xs">
             {onOpenAddCard && (
               <button
+                type="button"
                 onClick={onOpenAddCard}
                 className="px-3 py-2 font-bold flex items-center space-x-1.5 transition border shadow-sm"
                 style={{
@@ -330,6 +369,7 @@ export const WordBank: React.FC<WordBankProps> = ({
               </button>
             )}
             <button
+              type="button"
               onClick={() => {
                 setIsManagingDecks(!isManagingDecks);
                 if (isCreatingDeck) setIsCreatingDeck(false);
@@ -345,6 +385,7 @@ export const WordBank: React.FC<WordBankProps> = ({
               <span>{isManagingDecks ? 'Done Managing' : 'Manage Decks'}</span>
             </button>
             <button
+              type="button"
               onClick={() => {
                 setIsCreatingDeck(!isCreatingDeck);
                 if (isManagingDecks) setIsManagingDecks(false);
@@ -445,6 +486,7 @@ export const WordBank: React.FC<WordBankProps> = ({
                       {isEditing ? (
                         <>
                           <button
+                            type="button"
                             onClick={() => handleSaveDeckRename(d.id)}
                             className="px-3 py-1 font-bold text-xs shadow-sm flex items-center space-x-1"
                             style={{
@@ -456,6 +498,7 @@ export const WordBank: React.FC<WordBankProps> = ({
                             <span>Save</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => setEditingDeckId(null)}
                             className="px-2.5 py-1 border font-medium text-xs opacity-80 hover:opacity-100"
                             style={{
@@ -468,6 +511,7 @@ export const WordBank: React.FC<WordBankProps> = ({
                       ) : (
                         <>
                           <button
+                            type="button"
                             onClick={() => startEditingDeck(d)}
                             className="px-2.5 py-1 border font-semibold text-xs flex items-center space-x-1 transition hover:opacity-90"
                             style={{
@@ -482,6 +526,7 @@ export const WordBank: React.FC<WordBankProps> = ({
                           </button>
                           {!isMain && (
                             <button
+                              type="button"
                               onClick={() => handleDeleteDeckClick(d)}
                               className="px-2.5 py-1 border border-rose-500/40 text-rose-400 hover:text-rose-300 font-semibold text-xs flex items-center space-x-1 transition hover:bg-rose-500/10"
                               title="Delete Deck (Reassign cards to Main)"
@@ -638,6 +683,7 @@ export const WordBank: React.FC<WordBankProps> = ({
                     </td>
                     <td className="py-3 px-4 text-right space-x-2">
                       <button
+                        type="button"
                         onClick={() => speakText(card.chinese, 'zh-CN')}
                         className="p-1 transition opacity-75 hover:opacity-100"
                         style={{ color: 'var(--color-accent)' }}
@@ -646,6 +692,7 @@ export const WordBank: React.FC<WordBankProps> = ({
                         <Volume2 className="w-4 h-4 inline" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => onDeleteCard(card.id)}
                         className="text-rose-400 hover:text-rose-300 p-1 transition"
                         title="Delete from Bank"

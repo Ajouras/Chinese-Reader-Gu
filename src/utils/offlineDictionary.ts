@@ -946,6 +946,7 @@ export const SINGLE_CHAR_DICT: Record<string, string> = {
 const ZH_LEXICON_MAP = new Map<string, OfflineEntry>();
 const EN_LEXICON_MAP = new Map<string, OfflineEntry>();
 const EN_LOWER_INDEX = new Map<string, OfflineEntry>();
+const EN_WORD_INDEX = new Map<string, OfflineEntry[]>();
 
 /**
  * Generate stem variations of an English word (plural, tense, adverbs)
@@ -1018,14 +1019,11 @@ export function findEnglishLexiconMatch(cleanText: string): OfflineEntry | null 
     }
   }
 
-  // 3. Substring / phrase match in OFFLINE_LEXICON
-  for (const entry of OFFLINE_LEXICON) {
-    const entryLower = entry.en.toLowerCase();
-    for (const stem of stems) {
-      const regex = new RegExp(`\\b${stem}\\b`, 'i');
-      if (regex.test(entryLower)) {
-        return entry;
-      }
+  // 3. Pre-built reverse word token index lookup (O(stems) Map lookup vs O(N * stems) linear RegExp scan)
+  for (const stem of stems) {
+    const candidateEntries = EN_WORD_INDEX.get(stem);
+    if (candidateEntries && candidateEntries.length > 0) {
+      return candidateEntries[0];
     }
   }
 
@@ -1052,6 +1050,20 @@ for (const entry of OFFLINE_LEXICON) {
         if (withoutParen && !EN_LOWER_INDEX.has(withoutParen)) {
           EN_LOWER_INDEX.set(withoutParen, entry);
         }
+      }
+    }
+
+    // Index individual words inside any multi-word entry for Tier 3 reverse lookup
+    const words = rawEn.toLowerCase().match(/[a-z0-9]+/g);
+    if (words) {
+      const uniqueWords = new Set(words);
+      for (const w of uniqueWords) {
+        let list = EN_WORD_INDEX.get(w);
+        if (!list) {
+          list = [];
+          EN_WORD_INDEX.set(w, list);
+        }
+        list.push(entry);
       }
     }
   }
