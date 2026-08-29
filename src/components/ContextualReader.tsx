@@ -103,8 +103,8 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
   // Reader UI settings
   const [fontSize, setFontSize] = useState<number>(20);
 
-  // Split pane resizable state
-  const [splitPercent, setSplitPercent] = useState<number>(55);
+  // Split pane resizable state (default 60% for larger, more immersive reader area)
+  const [splitPercent, setSplitPercent] = useState<number>(60);
   const [isDraggingSplit, setIsDraggingSplit] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -513,7 +513,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 font-sans">
+    <div className="max-w-[1560px] w-full mx-auto p-3 sm:p-6 space-y-4 font-sans">
       {/* Non-blocking Library Error Banner */}
       {libraryError && (
         <div
@@ -677,8 +677,57 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
           />
         </div>
 
-        {/* Font Size & Edit Toggle Controls */}
-        <div className="flex items-center space-x-3">
+        {/* Font Size, Width Layout & Edit Toggle Controls */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Layout Presets for Reader Width */}
+          <div
+            style={{
+              backgroundColor: 'var(--color-sidebar-card-bg)',
+              borderColor: 'var(--color-nav-border)',
+              color: 'var(--color-text-primary)'
+            }}
+            className="hidden md:flex items-center space-x-1 border px-2 py-1 text-xs"
+            title="Adjust Reader text panel width percentage"
+          >
+            <Sliders className="w-3 h-3 opacity-60 mr-1" />
+            <button
+              type="button"
+              onClick={() => setSplitPercent(50)}
+              style={{
+                backgroundColor: splitPercent === 50 ? 'var(--color-accent)' : 'transparent',
+                color: splitPercent === 50 ? 'var(--color-accent-text)' : 'inherit',
+              }}
+              className="px-1.5 py-0.5 font-mono text-[11px] font-semibold hover:opacity-90 transition"
+              title="50% Balanced View"
+            >
+              50%
+            </button>
+            <button
+              type="button"
+              onClick={() => setSplitPercent(60)}
+              style={{
+                backgroundColor: splitPercent === 60 ? 'var(--color-accent)' : 'transparent',
+                color: splitPercent === 60 ? 'var(--color-accent-text)' : 'inherit',
+              }}
+              className="px-1.5 py-0.5 font-mono text-[11px] font-semibold hover:opacity-90 transition"
+              title="60% Standard Focus"
+            >
+              60%
+            </button>
+            <button
+              type="button"
+              onClick={() => setSplitPercent(70)}
+              style={{
+                backgroundColor: splitPercent === 70 ? 'var(--color-accent)' : 'transparent',
+                color: splitPercent === 70 ? 'var(--color-accent-text)' : 'inherit',
+              }}
+              className="px-1.5 py-0.5 font-mono text-[11px] font-semibold hover:opacity-90 transition"
+              title="70% Wide Reading Focus"
+            >
+              70%
+            </button>
+          </div>
+
           <div 
             style={{
               backgroundColor: 'var(--color-sidebar-card-bg)',
@@ -763,11 +812,13 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                   onChange={(e) => setInputText(e.target.value)}
                   style={{
                     fontSize: `${fontSize}px`,
+                    lineHeight: 1.95,
                     backgroundColor: 'var(--color-reader-canvas-bg, #020617)',
                     borderColor: 'var(--color-nav-border)',
                     color: 'var(--color-reader-text, #f8fafc)',
                   }}
-                  className="w-full border rounded-none p-4 font-sans focus:outline-none min-h-[360px] leading-relaxed shadow-inner"
+                  className="w-full border rounded-none p-6 font-sans focus:outline-none min-h-[540px] lg:min-h-[620px] leading-relaxed shadow-inner font-normal"
+                  placeholder="Paste or type Chinese / English text here..."
                 />
               </div>
             ) : (
@@ -785,12 +836,13 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                 }}
                 style={{ 
                   fontSize: `${fontSize}px`, 
-                  lineHeight: 1.85,
+                  lineHeight: 2.05,
+                  letterSpacing: sourceLang === 'zh' ? '0.04em' : 'normal',
                   backgroundColor: 'var(--color-reader-canvas-bg, #020617)',
                   borderColor: 'var(--color-nav-border)',
                   color: 'var(--color-reader-text, #f8fafc)',
                 }}
-                className="border rounded-none p-5 min-h-[360px] max-h-[500px] overflow-y-auto whitespace-pre-wrap select-text font-sans leading-relaxed tracking-wide transition-all shadow-inner"
+                className="border rounded-none p-6 sm:p-8 min-h-[540px] lg:min-h-[620px] max-h-[780px] overflow-y-auto whitespace-pre-wrap select-text font-sans leading-relaxed tracking-wide transition-all shadow-inner"
               >
                 {tokens.map((token) => {
                   const isActive = isTokenActive(token);
