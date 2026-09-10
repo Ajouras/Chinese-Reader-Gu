@@ -684,7 +684,12 @@ app.post('/api/decks', async (req, res) => {
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: ['**/data/**', '**/texts/**', '**/*.bak'],
+        },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
