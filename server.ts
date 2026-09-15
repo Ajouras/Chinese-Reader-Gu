@@ -6,6 +6,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { translateOffline, translateOfflineAsync } from './src/utils/offlineDictionary';
+import { analyzeAmbiguity, disambiguateHeuristically, SegmentToken } from './src/utils/segmentationEngine';
 
 dotenv.config();
 
@@ -20,6 +21,8 @@ const BANK_FILE = path.join(DATA_DIR, 'flashcards.json');
 const BACKUP_FILE = path.join(DATA_DIR, 'flashcards.json.bak');
 const DECKS_FILE = path.join(DATA_DIR, 'decks.json');
 const DECKS_BACKUP_FILE = path.join(DATA_DIR, 'decks.json.bak');
+const DISAMBIGUATION_CACHE_FILE = path.join(DATA_DIR, 'disambiguation_cache.json');
+const CORRECTIONS_FILE = path.join(DATA_DIR, 'segment_corrections.json');
 
 const DEFAULT_DECKS = [
   {
@@ -340,6 +343,118 @@ app.post('/api/translate-context', async (req, res) => {
   } catch (error: any) {
     console.error('Translation error in /api/translate-context:', error);
     res.status(500).json({ error: 'Translation error' });
+  }
+});
+
+// ==========================================
+// TWO-TIER WORD SEGMENTATION INFRASTRUCTURE
+// ==========================================
+
+// File-backed persistent disambiguation cache
+let persistentDisambiguationCache: Record<string, SegmentToken[]> = {};
+
+async function loadDisambiguationCache() {
+  try {
+    if (existsSync(DISAMBIGUATION_CACHE_FILE)) {
+      const raw = await fs.readFile(DISAMBIGUATION_CACHE_FILE, 'utf-8');
+      persistentDisambiguationCache = JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn('Could not load disambiguation cache:', err);
+  }
+}
+loadDisambiguationCache();
+
+async function saveDisambiguationCache(key: string, tokens: SegmentToken[]) {
+  try {
+    persistentDisambiguationCache[key] = tokens;
+    await fs.writeFile(DISAMBIGUATION_CACHE_FILE, JSON.stringify(persistentDisambiguationCache, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Could not save disambiguation cache:', err);
+  }
+}
+
+// Segmentation Endpoint (v1 Architecture):
+// Fast Dual-Segmenter Consensus (Jieba + ICU Intl.Segmenter) + Heuristic Disambiguation
+// All segmentation runs deterministically at 0ms latency with zero LLM API dependency.
+app.post('/api/segment', async (req, res) => {
+  try {
+    const { sentence, surroundingContext } = req.body;
+
+    if (!sentence || typeof sentence !== 'string') {
+      return res.status(400).json({ error: 'Sentence is required' });
+    }
+
+    const trimmedSentence = sentence.trim();
+    if (!trimmedSentence) {
+      return res.json({ sentence: '', tokens: [], tier: 'server-consensus', escalated: false });
+    }
+
+    // Dual-segmenter analysis with Trigger 1 (Disagreement) and Trigger 2 (Function-Word Boundary)
+    const analysis = analyzeAmbiguity(trimmedSentence, surroundingContext);
+
+    // If completely unambiguous, return dual-segmenter consensus immediately (0ms)
+    if (!analysis.isAmbiguous) {
+      return res.json({
+        sentence: trimmedSentence,
+        tokens: analysis.jiebaTokens,
+        tier: 'server-consensus',
+        escalated: false,
+      });
+    }
+
+    // Ambiguity detected (disagreement or function word boundary):
+    // Resolve deterministically via heuristic resolver
+    const resolvedTokens = disambiguateHeuristically(
+      trimmedSentence,
+      analysis.jiebaTokens,
+      analysis.ambiguousSpans
+    );
+
+    return res.json({
+      sentence: trimmedSentence,
+      tokens: resolvedTokens,
+      tier: 'server-heuristic-fallback',
+      escalated: true,
+      escalationReason: analysis.trigger,
+      ambiguousSpans: analysis.ambiguousSpans,
+    });
+  } catch (err: any) {
+    console.error('Error in /api/segment:', err);
+    res.status(500).json({ error: 'Failed to segment sentence' });
+  }
+});
+
+// Manual Correction Feedback Logging Endpoint
+app.post('/api/segment-corrections', async (req, res) => {
+  try {
+    const { sentence, original_spans, corrected_spans, source } = req.body;
+    let existing: any[] = [];
+    if (existsSync(CORRECTIONS_FILE)) {
+      try {
+        const raw = await fs.readFile(CORRECTIONS_FILE, 'utf-8');
+        existing = JSON.parse(raw);
+        if (!Array.isArray(existing)) existing = [];
+      } catch (_) {}
+    }
+
+    existing.push({
+      timestamp: new Date().toISOString(),
+      sentence,
+      original_spans,
+      corrected_spans,
+      source: source || 'client-manual',
+    });
+
+    // Keep latest 1000 corrections
+    if (existing.length > 1000) {
+      existing = existing.slice(-1000);
+    }
+
+    await fs.writeFile(CORRECTIONS_FILE, JSON.stringify(existing, null, 2), 'utf-8');
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to log correction' });
   }
 });
 

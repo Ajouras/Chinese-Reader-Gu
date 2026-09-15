@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": "2026-09-15T21:46:35.280Z",
+    "sentence": "这个人才来。",
+    "original_spans": [
+      "这个",
+      "人才",
+      "来"
+    ],
+    "corrected_spans": [
+      "这个",
+      "人",
+      "才",
+      "来"
+    ],
+    "source": "client-split"
+  }
+]

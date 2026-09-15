@@ -1,5 +1,9 @@
 import { segment } from 'pinyin-pro';
 import { OFFLINE_LEXICON, SINGLE_CHAR_DICT } from './offlineDictionary';
+import { resolveWordAtIndex } from './wordResolver';
+import { getCedictLexicon } from './cedictLexicon';
+
+export { resolveWordAtIndex };
 
 /**
  * Chinese Hover Word and Character Detection — Hybrid Offline Engine
@@ -161,7 +165,6 @@ export function detectChineseLexicalUnit(fullText: string, charIndex: number): W
 
   const char = fullText[charIndex];
   if (!CJK_CHAR_REGEX.test(char)) {
-    // Non-Chinese character (punctuation, space, English, digit)
     const isWord = /[a-zA-Z0-9]/.test(char);
     return {
       word: char,
@@ -173,131 +176,16 @@ export function detectChineseLexicalUnit(fullText: string, charIndex: number): W
     };
   }
 
-  const dict = getLexiconWordSet();
-  const { start: clauseStart, end: clauseEnd, clause } = getClauseBounds(fullText, charIndex);
-  const statisticalSegments = getStatisticalSegments(clause);
+  const resolved = resolveWordAtIndex(fullText, charIndex);
+  const isMulti = resolved.text.length > 1;
 
-  // Candidate generation:
-  // Find all spans [start, end) within clause covering charIndex
-  interface Candidate {
-    word: string;
-    startIndex: number;
-    endIndex: number;
-    score: number;
-    confidence: 'lexicon' | 'statistical' | 'single-char';
-  }
-
-  const candidates: Candidate[] = [];
-
-  // Single-character candidate (safe fallback)
-  let singleScore = 20;
-  if (SINGLE_CHAR_DICT[char] || dict.has(char)) {
-    singleScore += 20;
-  }
-  candidates.push({
-    word: char,
-    startIndex: charIndex,
-    endIndex: charIndex + 1,
-    score: singleScore,
-    confidence: 'single-char',
-  });
-
-  // Multi-character candidates
-  const maxLen = Math.min(MAX_WORD_LEN, clauseEnd - clauseStart);
-  for (let len = 2; len <= maxLen; len++) {
-    // start can range from max(clauseStart, charIndex - len + 1) to min(charIndex, clauseEnd - len)
-    const minStart = Math.max(clauseStart, charIndex - len + 1);
-    const maxStart = Math.min(charIndex, clauseEnd - len);
-
-    for (let s = minStart; s <= maxStart; s++) {
-      const e = s + len;
-      const sub = fullText.slice(s, e);
-
-      // Candidate must be entirely Chinese characters
-      if (!isAllChinese(sub)) continue;
-
-      let score = 0;
-      let confidence: 'lexicon' | 'statistical' | 'single-char' = 'single-char';
-
-      const inDict = dict.has(sub);
-      const inStat = statisticalSegments.has(sub);
-
-      if (inDict) {
-        // High confidence dictionary word
-        // Longer dictionary words receive higher priority (e.g. 图书馆 > 图书, 塞翁失马 > 塞翁)
-        score += 60 + len * 15;
-        confidence = 'lexicon';
-      }
-
-      if (inStat) {
-        // Confirmed by statistical segmenter
-        score += 35 + len * 5;
-        if (confidence !== 'lexicon') {
-          confidence = 'statistical';
-        }
-      }
-
-      // If not recognized by dictionary or statistical segmenter, do not combine randomly
-      if (!inDict && !inStat) {
-        continue;
-      }
-
-      // Contextual consistency bonus:
-      // Check prefix before word in clause
-      if (s > clauseStart) {
-        const prefix = fullText.slice(clauseStart, s);
-        if (dict.has(prefix) || statisticalSegments.has(prefix) || prefix.length === 1) {
-          score += 10;
-        }
-      }
-      // Check suffix after word in clause
-      if (e < clauseEnd) {
-        const suffix = fullText.slice(e, clauseEnd);
-        if (dict.has(suffix) || statisticalSegments.has(suffix) || suffix.length === 1) {
-          score += 10;
-        }
-      }
-
-      candidates.push({
-        word: sub,
-        startIndex: s,
-        endIndex: e,
-        score,
-        confidence,
-      });
-    }
-  }
-
-  // Sort candidates by score descending, then by length descending
-  candidates.sort((a, b) => {
-    if (b.score !== a.score) {
-      return b.score - a.score;
-    }
-    return b.word.length - a.word.length;
-  });
-
-  const best = candidates[0];
-
-  // If best multi-character candidate has solid confidence (score >= 60), use it
-  if (best && best.word.length > 1 && best.score >= 60) {
-    return {
-      word: best.word,
-      startIndex: best.startIndex,
-      endIndex: best.endIndex,
-      isWord: true,
-      confidence: best.confidence,
-      score: best.score,
-    };
-  }
-
-  // Safe fallback to single character
   return {
-    word: char,
-    startIndex: charIndex,
-    endIndex: charIndex + 1,
+    word: resolved.text,
+    startIndex: resolved.startIndex,
+    endIndex: resolved.endIndex,
     isWord: true,
-    confidence: 'single-char',
-    score: singleScore,
+    confidence: isMulti ? 'lexicon' : 'single-char',
+    score: resolved.text.length * 20,
   };
 }
 
@@ -547,18 +435,29 @@ export function tokenizeLexicalText(text: string, isChinese: boolean): LexicalTo
     return tokens;
   }
 
-  // Chinese tokenization with Hybrid Word Segmentation
-  const spans = segmentChineseHybrid(text);
+  // Chinese tokenization: each character is a single token.
+  // On hover, only the character under the cursor is lightly highlighted (cheap, no lookup needed).
+  // On click, resolveWordAtIndex detects and highlights the full multi-character word or idiom.
   const tokens: LexicalToken[] = [];
   let tokenCounter = 0;
 
-  for (const span of spans) {
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const isWord = CJK_CHAR_REGEX.test(char) || /[a-zA-Z0-9]/.test(char);
+    const span: WordSpan = {
+      word: char,
+      startIndex: i,
+      endIndex: i + 1,
+      isWord,
+      confidence: 'single-char',
+    };
+
     tokens.push({
       id: `tok-${tokenCounter++}`,
-      text: span.word,
-      isWord: span.isWord,
-      startIndex: span.startIndex,
-      endIndex: span.endIndex,
+      text: char,
+      isWord,
+      startIndex: i,
+      endIndex: i + 1,
       wordSpan: span,
     });
   }

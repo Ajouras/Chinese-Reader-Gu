@@ -20,6 +20,51 @@ import {
 import { TranslationResult, Flashcard, TextFileItem } from '../types';
 import { tokenizeText, getSurroundingSentence, speakText, TextToken, detectLinguisticUnitAtToken } from '../utils/textParser';
 import { translateOffline, translateOfflineAsync } from '../utils/offlineDictionary';
+import {
+  segmentSentenceWithFallback,
+  applyManualMerge,
+  applyManualSplit,
+  saveLocalCorrection,
+  SegmentToken,
+  SegmentationTier,
+} from '../utils/segmentationEngine';
+
+/**
+ * Extract 1-2 sentences of surrounding context (discourse context)
+ * for LLM disambiguation adjudication.
+ */
+export function getSurroundingDiscourseContext(fullText: string, charIndex: number): string {
+  if (!fullText) return '';
+  const delim = /[。！？\n]/;
+  let start = charIndex;
+  let countBefore = 0;
+  while (start > 0 && countBefore < 2) {
+    if (delim.test(fullText[start - 1])) {
+      countBefore++;
+    }
+    start--;
+  }
+  let end = charIndex;
+  let countAfter = 0;
+  while (end < fullText.length && countAfter < 2) {
+    if (delim.test(fullText[end])) {
+      countAfter++;
+    }
+    end++;
+  }
+  return fullText.slice(start, end).trim();
+}
+
+interface ActiveSentenceInfo {
+  sentence: string;
+  surroundingContext: string;
+  tokens: SegmentToken[];
+  activeTokenIndex: number;
+  sentenceStartInFull: number;
+  tier: SegmentationTier;
+  escalated: boolean;
+  escalationReason?: string;
+}
 
 function escapeRegex(str: string) {
   return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -114,6 +159,7 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
   const [activeTokenId, setActiveTokenId] = useState<string | null>(null);
   const [activeToken, setActiveToken] = useState<string | null>(null);
   const [activeSelectionRange, setActiveSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [activeSentenceInfo, setActiveSentenceInfo] = useState<ActiveSentenceInfo | null>(null);
 
   // Translation state
   const [translation, setTranslation] = useState<TranslationResult | null>(null);
@@ -368,21 +414,139 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
     setHoveredTokenId((prev) => (prev === token.id ? null : prev));
   };
 
-  // Click-to-Translate handler: captures token, runs phrase detection, extracts context sentence, and invokes translation
-  const handleTokenClick = (token: TextToken) => {
+  // Manual Split/Merge Word Boundary Handlers
+  const handleMerge = (direction: 'left' | 'right') => {
+    if (!activeSentenceInfo) return;
+    const { tokens, activeTokenIndex, sentence, sentenceStartInFull } = activeSentenceInfo;
+    const newTokens = applyManualMerge(tokens, activeTokenIndex, direction);
+    if (newTokens === tokens) return;
+
+    saveLocalCorrection(sentence, newTokens);
+
+    const newActiveIdx = direction === 'left' ? Math.max(0, activeTokenIndex - 1) : activeTokenIndex;
+    const targetToken = newTokens[newActiveIdx];
+    const absStart = sentenceStartInFull + targetToken.start;
+    const absEnd = sentenceStartInFull + targetToken.end;
+
+    setActiveSentenceInfo({
+      ...activeSentenceInfo,
+      tokens: newTokens,
+      activeTokenIndex: newActiveIdx,
+      tier: 'client-fallback',
+      escalationReason: 'user_correction',
+    });
+
+    setActiveSelectionRange({ start: absStart, end: absEnd });
+    handleTranslate(targetToken.word, sentence);
+
+    // Asynchronously log to server
+    try {
+      fetch('/api/segment-corrections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sentence,
+          original_spans: tokens.map((t) => t.word),
+          corrected_spans: newTokens.map((t) => t.word),
+          source: `client-merge-${direction}`,
+        }),
+      }).catch(() => {});
+    } catch (_) {}
+  };
+
+  const handleSplit = () => {
+    if (!activeSentenceInfo) return;
+    const { tokens, activeTokenIndex, sentence, sentenceStartInFull } = activeSentenceInfo;
+    const target = tokens[activeTokenIndex];
+    if (!target || target.word.length <= 1) return;
+
+    const newTokens = applyManualSplit(tokens, activeTokenIndex);
+    saveLocalCorrection(sentence, newTokens);
+
+    const targetToken = newTokens[activeTokenIndex];
+    const absStart = sentenceStartInFull + targetToken.start;
+    const absEnd = sentenceStartInFull + targetToken.end;
+
+    setActiveSentenceInfo({
+      ...activeSentenceInfo,
+      tokens: newTokens,
+      activeTokenIndex: activeTokenIndex,
+      tier: 'client-fallback',
+      escalationReason: 'user_correction',
+    });
+
+    setActiveSelectionRange({ start: absStart, end: absEnd });
+    handleTranslate(targetToken.word, sentence);
+
+    try {
+      fetch('/api/segment-corrections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sentence,
+          original_spans: tokens.map((t) => t.word),
+          corrected_spans: newTokens.map((t) => t.word),
+          source: 'client-split',
+        }),
+      }).catch(() => {});
+    } catch (_) {}
+  };
+
+  // Click-to-Translate handler: captures token, runs two-tier segmentation with fallback, extracts context sentence, and invokes translation
+  const handleTokenClick = async (token: TextToken) => {
     if (justSelectedRef.current) return;
     const sel = window.getSelection()?.toString().trim();
     if (sel && sel.length > 0) return;
 
-    // Detect complete linguistic unit / multi-word phrase or compound
     const isTokenChinese = /[\u4e00-\u9fa5]/.test(token.text);
-    const detected = detectLinguisticUnitAtToken(inputText, token, isTokenChinese);
 
-    // Highlight the selected phrase bounds
+    if (isTokenChinese) {
+      const sentence = getSurroundingSentence(inputText, token.text, token.startIndex);
+      const surroundingContext = getSurroundingDiscourseContext(inputText, token.startIndex);
+
+      try {
+        const segResult = await segmentSentenceWithFallback(sentence, surroundingContext);
+        const sentenceStartInFull = inputText.indexOf(sentence);
+        const relIdx = sentenceStartInFull >= 0 ? token.startIndex - sentenceStartInFull : 0;
+
+        let matchedIdx = segResult.tokens.findIndex(
+          (t) => relIdx >= t.start && relIdx < t.end
+        );
+        if (matchedIdx === -1 && segResult.tokens.length > 0) {
+          matchedIdx = 0;
+        }
+
+        if (matchedIdx !== -1) {
+          const matchedToken = segResult.tokens[matchedIdx];
+          const absStart = (sentenceStartInFull >= 0 ? sentenceStartInFull : 0) + matchedToken.start;
+          const absEnd = (sentenceStartInFull >= 0 ? sentenceStartInFull : 0) + matchedToken.end;
+
+          setActiveSentenceInfo({
+            sentence,
+            surroundingContext,
+            tokens: segResult.tokens,
+            activeTokenIndex: matchedIdx,
+            sentenceStartInFull: sentenceStartInFull >= 0 ? sentenceStartInFull : 0,
+            tier: segResult.tier,
+            escalated: segResult.escalated,
+            escalationReason: segResult.escalationReason,
+          });
+
+          setActiveTokenId(token.id);
+          setActiveSelectionRange({ start: absStart, end: absEnd });
+          handleTranslate(matchedToken.word, sentence, token.id);
+          return;
+        }
+      } catch (err) {
+        // Continue to fallback
+      }
+    }
+
+    // English or generic fallback
+    const detected = detectLinguisticUnitAtToken(inputText, token, isTokenChinese);
+    setActiveSentenceInfo(null);
     setActiveTokenId(token.id);
     setActiveSelectionRange({ start: detected.startIndex, end: detected.endIndex });
-
-    // Execute translation with clicked phrase & context
     handleTranslate(detected.phrase, detected.contextSentence, token.id);
   };
 
@@ -1069,6 +1233,97 @@ export const ContextualReader: React.FC<ContextualReaderProps> = ({
                     {translation.english}
                   </div>
                 </div>
+
+                {/* Boundary Adjustment & Two-Tier Escalation Toolbar */}
+                {activeSentenceInfo && (
+                  <div
+                    style={{
+                      backgroundColor: 'var(--color-sidebar-card-bg, #020617)',
+                      borderColor: 'var(--color-nav-border)',
+                    }}
+                    className="border rounded-none p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span className="font-semibold opacity-70 text-[11px] uppercase tracking-wide">
+                        Boundary:
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 text-[10px] font-mono font-bold border rounded-none uppercase ${
+                          activeSentenceInfo.escalationReason === 'user_correction'
+                            ? 'bg-sky-500/10 text-sky-300 border-sky-500/30'
+                            : activeSentenceInfo.tier === 'server-consensus'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                            : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
+                        }`}
+                        title={
+                          activeSentenceInfo.escalationReason === 'user_correction'
+                            ? 'User Manual Correction (persisted locally)'
+                            : activeSentenceInfo.tier === 'server-consensus'
+                            ? 'Jieba & ICU Dual-Segmenter Consensus (0ms)'
+                            : `Syntactic Disambiguation (${activeSentenceInfo.escalationReason || 'boundary ambiguity'})`
+                        }
+                      >
+                        {activeSentenceInfo.escalationReason === 'user_correction'
+                          ? '✎ User Corrected'
+                          : activeSentenceInfo.tier === 'server-consensus'
+                          ? '✓ Consensus'
+                          : '⚡ Disambiguated'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleMerge('left')}
+                        disabled={activeSentenceInfo.activeTokenIndex <= 0}
+                        style={{
+                          backgroundColor: 'var(--color-reader-panel-bg)',
+                          borderColor: 'var(--color-nav-border)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                        className="px-2 py-1 border text-[11px] font-medium transition disabled:opacity-30 disabled:cursor-not-allowed hover:border-amber-400/60 flex items-center space-x-1"
+                        title="Merge with preceding word / character"
+                      >
+                        <span>◂ Merge Left</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSplit}
+                        disabled={
+                          !activeSentenceInfo.tokens[activeSentenceInfo.activeTokenIndex] ||
+                          activeSentenceInfo.tokens[activeSentenceInfo.activeTokenIndex].word.length <= 1
+                        }
+                        style={{
+                          backgroundColor: 'var(--color-reader-panel-bg)',
+                          borderColor: 'var(--color-nav-border)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                        className="px-2 py-1 border text-[11px] font-medium transition disabled:opacity-30 disabled:cursor-not-allowed hover:border-amber-400/60 flex items-center space-x-1"
+                        title="Split selected multi-character word into individual characters"
+                      >
+                        <span>Split /</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleMerge('right')}
+                        disabled={
+                          activeSentenceInfo.activeTokenIndex >= activeSentenceInfo.tokens.length - 1
+                        }
+                        style={{
+                          backgroundColor: 'var(--color-reader-panel-bg)',
+                          borderColor: 'var(--color-nav-border)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                        className="px-2 py-1 border text-[11px] font-medium transition disabled:opacity-30 disabled:cursor-not-allowed hover:border-amber-400/60 flex items-center space-x-1"
+                        title="Merge with succeeding word / character"
+                      >
+                        <span>Merge Right ▸</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Sentence Context */}
                 <div 
